@@ -1,7 +1,10 @@
 .venv/
+venv/
 __pycache__/
 *.pyc
 src/rl_final_project.egg-info/dependency_links.txt
 src/rl_final_project.egg-info/PKG-INFO
 src/rl_final_project.egg-info/SOURCES.txt
 src/rl_final_project.egg-info/top_level.txt
+
+
