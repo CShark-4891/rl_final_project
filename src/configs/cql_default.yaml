@@ -1,0 +1,13 @@
+# configs/cql_default.yaml
+env_name: "mujoco/walker2d/medium-v0"
+n_steps: 200000            # Standard budget for stable locomotion training
+batch_size: 256
+learning_rate_critic: 0.0003
+learning_rate_actor: 0.00003
+gamma: 0.99
+tau: 0.005
+conservative_weight: 5.0   # Baseline alpha scaling for continuous control
+seeds: [42, 420, 6767, 6969, 8008]  # Frozen experimental seeds
+device: "cuda:0"            # Set to "cpu" if running without GPU resources
+
+# Hyperparameters for the CQL algorithm from the paper: Conservative Q-Learning for Offline Reinforcement Learning (Kumar et al., 2020)
