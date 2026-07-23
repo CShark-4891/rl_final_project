@@ -1,0 +1,85 @@
+{
+    "environment": "mujoco/hopper/expert-v0",
+    "configuration": {
+        "env_name": "mujoco/walker2d/medium-v0",
+        "n_steps": 200000,
+        "batch_size": 256,
+        "learning_rate_critic": 0.0003,
+        "learning_rate_actor": 3e-05,
+        "gamma": 0.99,
+        "tau": 0.005,
+        "conservative_weight": 5.0,
+        "seeds": [
+            42,
+            420,
+            6769
+        ],
+        "device": "cuda:0"
+    },
+    "aggregate_performance": {
+        "mean_d4rl_score": 0.8210126960193361,
+        "std_d4rl_score": 0.05278838973009694
+    },
+    "seed_level_telemetry": {
+        "42": {
+            "env_name": "mujoco/hopper/expert-v0",
+            "gym_id": "Hopper-v4",
+            "evaluation_seed": 42,
+            "mean_raw_score": 6.99051163444625,
+            "std_raw_score": 0.07627948372747058,
+            "d4rl_normalized_score": 0.8293799475907644,
+            "all_episode_returns": [
+                7.11052523398214,
+                7.048285214210319,
+                7.102944195667476,
+                6.979695140986915,
+                6.995173596824631,
+                6.8418859683951645,
+                6.94089813615451,
+                6.941223997745406,
+                6.969340022563339,
+                6.9751448379326
+            ]
+        },
+        "420": {
+            "env_name": "mujoco/hopper/expert-v0",
+            "gym_id": "Hopper-v4",
+            "evaluation_seed": 420,
+            "mean_raw_score": 8.672791678570194,
+            "std_raw_score": 0.07625003621387559,
+            "d4rl_normalized_score": 0.8810740152588941,
+            "all_episode_returns": [
+                8.533123126281373,
+                8.733495516603515,
+                8.593341066701816,
+                8.659204566629725,
+                8.710473420866451,
+                8.746518146572589,
+                8.73873287990874,
+                8.572304482373157,
+                8.6841391792778,
+                8.756584400486771
+            ]
+        },
+        "6769": {
+            "env_name": "mujoco/hopper/expert-v0",
+            "gym_id": "Hopper-v4",
+            "evaluation_seed": 6769,
+            "mean_raw_score": 4.491345186655339,
+            "std_raw_score": 0.024715323466121007,
+            "d4rl_normalized_score": 0.7525841252083499,
+            "all_episode_returns": [
+                4.473266084665081,
+                4.460940687145061,
+                4.4694122158136524,
+                4.5212782562444715,
+                4.513040810080915,
+                4.508107301063189,
+                4.479378581999775,
+                4.536549689211803,
+                4.4809701286673835,
+                4.4705081116620615
+            ]
+        }
+    }
+}
