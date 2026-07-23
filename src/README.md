@@ -21,26 +21,26 @@ TODO insert a better installation guide here.
 To ensure a structured, hypothesis-driven workflow over the 1–2 week full-time scope, implementation is broken down into four distinct, trackable phases.
 
 ### Phase 1: Dataset Analysis & Profiling
-[X] Implement `dataset_analyzer.py` to compute measurable characteristics for each dataset.
-[X] Store the output as JSON files in `dataset_profiles/` for later reference.
+- [X] Implement `dataset_analyzer.py` to compute measurable characteristics for each dataset.
+- [X] Store the output as JSON files in `dataset_profiles/` for later reference.
 
 
 ## Phase 2: CQL Training & Evaluation Pipeline
 
-[X] Implement `train.py` to train a CQL agent on a single dataset split with a fixed random seed.
-[X] Implement `benchmark.py` to evaluate a saved model inside the corresponding Gymnasium environment.
-[X] Implement `main.py` to orchestrate the full experiment loop across datasets and seeds, aggregating metrics into `global_pipeline_report.json`.
-[ ] Ensure reproducibility and logging of all artifacts under `results/cql_runs/`.
+- [X] Implement `train.py` to train a CQL agent on a single dataset split with a fixed random seed.
+- [X] Implement `benchmark.py` to evaluate a saved model inside the corresponding Gymnasium environment.
+- [X] Implement `main.py` to orchestrate the full experiment loop across datasets and seeds, aggregating metrics into `global_pipeline_report.json`.
+- [ ] Ensure reproducibility and logging of all artifacts under `results/cql_runs/`.
 
 ## Phase 3: Result Analysis & Visualization
 
-[ ] Implement scripts to generate plots and analytics from the aggregated metrics.
-[ ] Explore correlations between dataset characteristics and CQL performance.
-[ ] Identify interaction effects and potential distribution shifts.
-[ ] Optional: Build a predictive model to estimate CQL performance based on dataset metrics.
+- [ ] Implement scripts to generate plots and analytics from the aggregated metrics.
+- [ ] Explore correlations between dataset characteristics and CQL performance.
+- [ ] Identify interaction effects and potential distribution shifts.
+- [ ] Optional: Build a predictive model to estimate CQL performance based on dataset metrics.
 
 ## Phase 4: Documentation & Reporting
 
-[ ] Compile findings into a comprehensive report.
-[ ] Document the codebase and provide usage instructions.
-[ ] Prepare for potential publication or presentation of results.
+- [ ] Compile findings into a comprehensive report.
+- [ ] Document the codebase and provide usage instructions.
+- [ ] Prepare for potential publication or presentation of results.
