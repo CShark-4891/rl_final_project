@@ -1,5 +1,5 @@
 # configs/cql_default.yaml
-env_name: "mujoco/walker2d/medium-v0"
+env_name: "mujoco/walker2d/medium-v0" # This is ignored in the main.py pipeline, as we sweep through all datasets in the datasets_global list
 n_steps: 200000            # Standard budget for stable locomotion training
 batch_size: 256
 learning_rate_critic: 0.0003
