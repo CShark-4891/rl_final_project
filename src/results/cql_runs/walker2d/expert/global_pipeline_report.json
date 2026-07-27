@@ -1,0 +1,85 @@
+{
+    "environment": "mujoco/walker2d/expert-v0",
+    "configuration": {
+        "env_name": "mujoco/walker2d/medium-v0",
+        "n_steps": 200000,
+        "batch_size": 256,
+        "learning_rate_critic": 0.0003,
+        "learning_rate_actor": 3e-05,
+        "gamma": 0.99,
+        "tau": 0.005,
+        "conservative_weight": 5.0,
+        "seeds": [
+            42,
+            420,
+            6769
+        ],
+        "device": "cuda:0"
+    },
+    "aggregate_performance": {
+        "mean_d4rl_score": 0.9449282808897433,
+        "std_d4rl_score": 0.17699374075188756
+    },
+    "seed_level_telemetry": {
+        "42": {
+            "env_name": "mujoco/walker2d/expert-v0",
+            "gym_id": "Walker2d-v4",
+            "evaluation_seed": 42,
+            "mean_raw_score": 43.2557014694767,
+            "std_raw_score": 2.1864119906100608,
+            "d4rl_normalized_score": 0.9069615279103901,
+            "all_episode_returns": [
+                46.588814270221754,
+                42.072786452301585,
+                42.71917956506177,
+                44.02306919763181,
+                44.18213960493722,
+                40.57105928987418,
+                42.885155655025365,
+                41.73339291856131,
+                40.49280153757536,
+                47.2886162035766
+            ]
+        },
+        "420": {
+            "env_name": "mujoco/walker2d/expert-v0",
+            "gym_id": "Walker2d-v4",
+            "evaluation_seed": 420,
+            "mean_raw_score": 36.0339241186615,
+            "std_raw_score": 2.5822196013707552,
+            "d4rl_normalized_score": 0.7496476364865664,
+            "all_episode_returns": [
+                33.57016881586262,
+                35.07317045838472,
+                32.32120992168527,
+                35.92375142968251,
+                36.001483872638026,
+                36.356683445137456,
+                40.73619044279197,
+                33.00511335306755,
+                38.15587779885504,
+                39.19559164850986
+            ]
+        },
+        "6769": {
+            "env_name": "mujoco/walker2d/expert-v0",
+            "gym_id": "Walker2d-v4",
+            "evaluation_seed": 6769,
+            "mean_raw_score": 55.706275227309604,
+            "std_raw_score": 12.544323729482343,
+            "d4rl_normalized_score": 1.1781756782722734,
+            "all_episode_returns": [
+                85.35602883224566,
+                38.91323806887617,
+                55.81336743978943,
+                43.388280671861644,
+                50.03534159488897,
+                59.77867530571073,
+                56.00650701339286,
+                51.23735598271902,
+                48.81122856648153,
+                67.72272879713002
+            ]
+        }
+    }
+}
