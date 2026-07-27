@@ -43,8 +43,12 @@ def main():
 
     # 3. Load the dataset using Minari (D4RL wrapper)
     dataset, env = d3rlpy.datasets.get_minari(args.environment)
-
-
+    alpha_override = 0.0
+    if "halfcheetah" in args.environment:
+        alpha_override = 1.0
+    else:
+        alpha_override = 5.0  # Default robust choice for Walker2d and Hopper
+    print("[!] Alpha Override for CQL Conservative Weight: ", alpha_override, "\n")
     # 4. Initialize the CQL Algorithm using Config class
     cql_config = d3rlpy.algos.CQLConfig(
         actor_learning_rate=config["learning_rate_actor"],
@@ -52,7 +56,7 @@ def main():
         batch_size=config["batch_size"],
         gamma=config["gamma"],
         tau=config["tau"],
-        conservative_weight=config["conservative_weight"]  # conservative_weight maps to alpha in CQL
+        conservative_weight=alpha_override  # conservative_weight maps to alpha in CQL
     )
 
     # Create the learnable model instance assigned to the requested device
