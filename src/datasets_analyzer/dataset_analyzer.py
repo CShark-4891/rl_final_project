@@ -193,6 +193,7 @@ if __name__ == "__main__":
         "mujoco/hopper/simple-v0",
         "mujoco/hopper/medium-v0",
         "mujoco/hopper/expert-v0",
+        "mujoco/hopper/medium-replay-v0",
 
         # --- 4. Ant Suite ---
         "mujoco/ant/simple-v0",
@@ -204,7 +205,7 @@ if __name__ == "__main__":
         "mujoco/humanoid/medium-v0",
         "mujoco/humanoid/expert-v0"
     ]
-
+    
     for dataset in datasets:
         print(f"[+] Analyzing {dataset}")
         profile = analyze_dataset(dataset)
