@@ -1,0 +1,85 @@
+{
+    "environment": "mujoco/halfcheetah/expert-v0",
+    "configuration": {
+        "env_name": "mujoco/walker2d/medium-v0",
+        "n_steps": 200000,
+        "batch_size": 256,
+        "learning_rate_critic": 0.0003,
+        "learning_rate_actor": 3e-05,
+        "gamma": 0.99,
+        "tau": 0.005,
+        "conservative_weight": 5.0,
+        "seeds": [
+            42,
+            420,
+            6769
+        ],
+        "device": "cuda:0"
+    },
+    "aggregate_performance": {
+        "mean_d4rl_score": -0.9848998406409587,
+        "std_d4rl_score": 0.8111637668001322
+    },
+    "seed_level_telemetry": {
+        "42": {
+            "env_name": "mujoco/halfcheetah/expert-v0",
+            "gym_id": "HalfCheetah-v5",
+            "evaluation_seed": 42,
+            "mean_raw_score": -264.7019627165231,
+            "std_raw_score": 8.839349669125765,
+            "d4rl_normalized_score": 0.12362445003022068,
+            "all_episode_returns": [
+                -270.89452180009806,
+                -255.8812710998421,
+                -262.05267737730526,
+                -253.1851996725897,
+                -281.14990840830137,
+                -262.1084687702313,
+                -254.34182029880975,
+                -266.3465466310502,
+                -264.600319394232,
+                -276.4588937127716
+            ]
+        },
+        "420": {
+            "env_name": "mujoco/halfcheetah/expert-v0",
+            "gym_id": "HalfCheetah-v5",
+            "evaluation_seed": 420,
+            "mean_raw_score": -439.3978085976998,
+            "std_raw_score": 1.102112669753986,
+            "d4rl_normalized_score": -1.2835051699163498,
+            "all_episode_returns": [
+                -440.6255236795572,
+                -437.68729143403476,
+                -439.9768576803628,
+                -440.89418309941385,
+                -440.1348397396377,
+                -438.16722111199687,
+                -437.8424393016759,
+                -440.15783399493307,
+                -439.3845834103047,
+                -439.1073125250812
+            ]
+        },
+        "6769": {
+            "env_name": "mujoco/halfcheetah/expert-v0",
+            "gym_id": "HalfCheetah-v5",
+            "evaluation_seed": 6769,
+            "mean_raw_score": -502.87765168226315,
+            "std_raw_score": 1.267755393533955,
+            "d4rl_normalized_score": -1.7948188020367468,
+            "all_episode_returns": [
+                -503.7424572303975,
+                -505.23055794060997,
+                -501.0063925716496,
+                -500.9141696626991,
+                -502.4540043134288,
+                -502.5186672715589,
+                -503.39970616789986,
+                -503.30168027773925,
+                -503.98975251251767,
+                -502.21912887413066
+            ]
+        }
+    }
+}

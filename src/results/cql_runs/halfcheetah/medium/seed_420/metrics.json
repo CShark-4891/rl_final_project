@@ -1,6 +1,6 @@
 {
     "env_name": "mujoco/halfcheetah/medium-v0",
-    "gym_id": "HalfCheetah-v4",
+    "gym_id": "HalfCheetah-v5",
     "evaluation_seed": 420,
     "mean_raw_score": -476.50041810278265,
     "std_raw_score": 1.123875094065898,

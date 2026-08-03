@@ -23,7 +23,7 @@
     "seed_level_telemetry": {
         "42": {
             "env_name": "mujoco/halfcheetah/medium-v0",
-            "gym_id": "HalfCheetah-v4",
+            "gym_id": "HalfCheetah-v5",
             "evaluation_seed": 42,
             "mean_raw_score": -452.07017422506806,
             "std_raw_score": 0.8588275225931443,
@@ -43,7 +43,7 @@
         },
         "420": {
             "env_name": "mujoco/halfcheetah/medium-v0",
-            "gym_id": "HalfCheetah-v4",
+            "gym_id": "HalfCheetah-v5",
             "evaluation_seed": 420,
             "mean_raw_score": -476.50041810278265,
             "std_raw_score": 1.123875094065898,
@@ -63,7 +63,7 @@
         },
         "6769": {
             "env_name": "mujoco/halfcheetah/medium-v0",
-            "gym_id": "HalfCheetah-v4",
+            "gym_id": "HalfCheetah-v5",
             "evaluation_seed": 6769,
             "mean_raw_score": -436.56951920385717,
             "std_raw_score": 0.8507209974424438,
