@@ -20,7 +20,9 @@ D4RL_REF_SCORES = {
     "hopper-expert-v2": {"random": -20.0, "expert": 3234.3},
     "walker2d-medium-v2": {"random": 1.62, "expert": 4592.3},
     "walker2d-random-v2": {"random": 1.62, "expert": 4592.3},
-    "walker2d-expert-v2": {"random": 1.62, "expert": 4592.3}
+    "walker2d-expert-v2": {"random": 1.62, "expert": 4592.3},
+    "ant-expert-v2": {"random": -325.6, "expert": 3818.5},
+    "hopper-medium-replay-v2": {"random": -20.0, "expert": 3234.3},
 }
 
 def get_gym_id(env_name: str) -> str:
@@ -33,6 +35,8 @@ def get_gym_id(env_name: str) -> str:
         return "Walker2d-v4"
     elif "halfcheetah" in env_name:
         return "HalfCheetah-v4"
+    elif "ant" in env_name:
+        return "Ant-v4"
     else:
         raise ValueError(f"[!] Environment family '{env_name}' is unsupported.'")
 
@@ -46,6 +50,8 @@ def compute_d4rl_score(env_name: str, raw_score: float) -> float:
         result_str = "hopper"
     elif "walker2d" in env_name:
         result_str = "walker2d"
+    elif "ant" in env_name:
+        result_str = "ant"
 
     if "medium" in env_name:
         result_str += "-medium-v2"
@@ -53,6 +59,9 @@ def compute_d4rl_score(env_name: str, raw_score: float) -> float:
         result_str += "-expert-v2"
     elif "simple" in env_name:
         result_str += "-simple-v2"
+
+    if "replay" in env_name and "medium" in env_name:
+        result_str = result_str.replace("-medium-v2", "-medium-replay-v2")
 
     if result_str not in D4RL_REF_SCORES:
         print(f"[+] Warning: Reference scores for {env_name} missing. Returning raw score.")
@@ -77,9 +86,6 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
 
-    env_name = args.environment
-    gym_id = get_gym_id(env_name)
-
     print(f" [+] Loading policy model payload from: {args.model_path}")
     if not os.path.exists(args.model_path):
         raise FileNotFoundError(f"Target model file missing at {args.model_path}")
@@ -88,7 +94,14 @@ def main():
     algo = d3rlpy.load_learnable(args.model_path)
 
     # 2. Build tracking environment
-    env = gym.make(gym_id)
+    # Load the same environment used during training
+    dataset, env = d3rlpy.datasets.get_minari(args.environment)
+
+    gym_id = env.spec.id if env.spec is not None else args.environment
+
+    print(f"[+] Observation space: {env.observation_space}")
+    print(f"[+] Action space: {env.action_space}")
+
     env.action_space.seed(args.seed)
 
     episode_returns = []
@@ -114,8 +127,9 @@ def main():
     # 4. Calculate final metrics profiles
     mean_raw_score = float(np.mean(episode_returns))
     std_raw_score = float(np.std(episode_returns))
-    normalized_d4rl_score = compute_d4rl_score(env_name, mean_raw_score)
-
+    env_name = args.environment
+    normalized_d4rl_score =  compute_d4rl_score(env_name, mean_raw_score)
+    #print(normalized_d4rl_score)
     print(f"================================================================\n")
     print(f" [+] FINAL EVALUATION PROFILE FOR SEED {args.seed} ")
     print(f"================================================================\n")

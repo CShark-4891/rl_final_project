@@ -14,7 +14,7 @@ datasets_global = [
         "mujoco/hopper/simple-v0",
         "mujoco/hopper/medium-v0",
         "mujoco/hopper/expert-v0",
-
+        "mujoco/hopper/medium-replay-v0",
         # --- 2. Walker2d Suite ---
         "mujoco/walker2d/simple-v0",
         "mujoco/walker2d/medium-v0",
@@ -28,7 +28,7 @@ datasets_global = [
         # --- 4. Ant Suite ---
  #       "mujoco/ant/simple-v0",
  #       "mujoco/ant/medium-v0",
- #       "mujoco/ant/expert-v0",
+         "mujoco/ant/expert-v0",
 
         # --- 5. Humanoid Suite ---
   #      "mujoco/humanoid/simple-v0",
@@ -65,6 +65,8 @@ def build_dataset_name(dataset_str: str) -> str:
         result_str += "/expert"
     elif "simple" in dataset_str:
         result_str += "/simple"
+    elif "medium-replay" in dataset_str:
+        result_str += "/medium-replay"
     elif "medium" in dataset_str:
         result_str += "/medium"
     return result_str
