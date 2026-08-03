@@ -1,0 +1,85 @@
+{
+    "environment": "mujoco/ant/expert-v0",
+    "configuration": {
+        "env_name": "mujoco/walker2d/medium-v0",
+        "n_steps": 200000,
+        "batch_size": 256,
+        "learning_rate_critic": 0.0003,
+        "learning_rate_actor": 3e-05,
+        "gamma": 0.99,
+        "tau": 0.005,
+        "conservative_weight": 5.0,
+        "seeds": [
+            42,
+            420,
+            6769
+        ],
+        "device": "cuda:0"
+    },
+    "aggregate_performance": {
+        "mean_d4rl_score": 8.201258887471578,
+        "std_d4rl_score": 8.630264820156038
+    },
+    "seed_level_telemetry": {
+        "42": {
+            "env_name": "mujoco/ant/expert-v0",
+            "gym_id": "Ant-v5",
+            "evaluation_seed": 42,
+            "mean_raw_score": -93.62554167369599,
+            "std_raw_score": 21.207137422577397,
+            "d4rl_normalized_score": 5.597704165592144,
+            "all_episode_returns": [
+                -101.85496284492292,
+                -84.88970841332676,
+                -91.37142835965705,
+                -106.1753812300226,
+                -106.99799757794821,
+                -99.8999151473391,
+                -104.13211727511536,
+                -105.86578810998472,
+                -33.24939708225114,
+                -101.81872069639208
+            ]
+        },
+        "420": {
+            "env_name": "mujoco/ant/expert-v0",
+            "gym_id": "Ant-v5",
+            "evaluation_seed": 420,
+            "mean_raw_score": -359.7286349446727,
+            "std_raw_score": 22.102634263305983,
+            "d4rl_normalized_score": -0.8235475723238503,
+            "all_episode_returns": [
+                -349.7516601202191,
+                -380.05844481275506,
+                -358.31834294265997,
+                -374.9725589164668,
+                -376.2337132828141,
+                -323.03951950366275,
+                -379.312126189086,
+                -315.82173546719304,
+                -370.8240686058958,
+                -368.95417960597473
+            ]
+        },
+        "6769": {
+            "env_name": "mujoco/ant/expert-v0",
+            "gym_id": "Ant-v5",
+            "evaluation_seed": 6769,
+            "mean_raw_score": 496.1592852854977,
+            "std_raw_score": 30.882754370635322,
+            "d4rl_normalized_score": 19.82962006914644,
+            "all_episode_returns": [
+                518.7359646979189,
+                542.5713961316391,
+                520.1048529249832,
+                460.7206428987452,
+                457.5405160941911,
+                472.83492152776415,
+                541.8343284979874,
+                470.12324303406865,
+                480.51816404697973,
+                496.60882300069903
+            ]
+        }
+    }
+}
