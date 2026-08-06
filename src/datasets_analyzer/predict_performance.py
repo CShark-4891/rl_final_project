@@ -145,7 +145,7 @@ if __name__ == "__main__":
     predictor = OfflineRLMetaPredictor()
 
     # 1. Train on the historical registry
-    registry_path = "../meta_analysis_registry.csv"
+    registry_path = "../dataset_profiles/meta_analysis_registry.csv"
     predictor.train(registry_path)
 
     # 2. Automatically map out all available pipeline logs against feature targets
