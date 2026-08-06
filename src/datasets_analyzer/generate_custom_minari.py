@@ -35,13 +35,13 @@ def create_local_medium_replay():
 
     # 3. Compile the buffer directly into the local dataset cache directory
     print("[+] Compiling collected steps into local Minari standard dataset format...")
-    dataset = collector_env.create_dataset(
-        dataset_id=dataset_id,
-        algorithm_name="Medium-Replay-Random-Sampler",
-        author="Alexander",
-        author_email="alexander@example.com",
-        description="Custom validation replay buffer split generated for out-of-distribution pipeline evaluation."
-    )
+    # dataset = collector_env.create_dataset(
+    #     dataset_id=dataset_id,
+    #     algorithm_name="Medium-Replay-Random-Sampler",
+    #     author="Alexander",
+    #     author_email="alexander@example.com",
+    #     description="Custom validation replay buffer split generated for out-of-distribution pipeline evaluation."
+    # )
 
     print("Local Minari dataset successfully compiled!")
     print("=========================================================\n")
