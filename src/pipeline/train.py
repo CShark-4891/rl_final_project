@@ -56,6 +56,7 @@ def main():
     else:
         alpha_override = 5.0  # Default robust choice for Walker2d and Hopper
     print("[!] Alpha Override for CQL Conservative Weight: ", alpha_override, "\n")
+
     # 4. Initialize the CQL Algorithm using Config class
     cql_config = d3rlpy.algos.CQLConfig(
         actor_learning_rate=config["learning_rate_actor"],
@@ -67,7 +68,11 @@ def main():
     )
 
     # Create the learnable model instance assigned to the requested device
-    algo = cql_config.create(device=config["device"])
+    device = config["device"]
+    if device != "cpu" and not torch.cuda.is_available():
+        print(f"[!] Requested device '{device}' but CUDA is unavailable. Falling back to CPU.\n")
+        device = "cpu"
+    algo = cql_config.create(device=device)
 
     # 5. Execute Offline Training Loop
     algo.fit(

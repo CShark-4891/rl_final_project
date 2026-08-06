@@ -5,35 +5,7 @@ import subprocess
 import yaml
 import json
 import numpy as np
-
-
-datasets_global = [
-
-    # --- 1. Hopper Suite ---
-    "mujoco/hopper/simple-v0",
-    "mujoco/hopper/medium-v0",
-    "mujoco/hopper/expert-v0",
-    "mujoco/hopper/medium-replay-v0",
-    # --- 2. Walker2d Suite ---
-    "mujoco/walker2d/simple-v0",
-    "mujoco/walker2d/medium-v0",
-    "mujoco/walker2d/expert-v0",
-
-    # --- 3. HalfCheetah Suite ---
-    "mujoco/halfcheetah/simple-v0",
-    "mujoco/halfcheetah/medium-v0",
-    "mujoco/halfcheetah/expert-v0",
-
-    # --- 4. Ant Suite ---
-    #       "mujoco/ant/simple-v0",
-    #       "mujoco/ant/medium-v0",
-    "mujoco/ant/expert-v0",
-
-    # --- 5. Humanoid Suite ---
-    #      "mujoco/humanoid/simple-v0",
-    #      "mujoco/humanoid/medium-v0",
-    #      "mujoco/humanoid/expert-v0"
-]
+import pipeline.dataset_utils as dataset_utils
 
 
 def check_agent_benchmark_completion(metrics_path: str) -> bool:
@@ -48,32 +20,6 @@ def check_agent_training_completion(model_path: str, steps: int) -> bool:
     return result_file
 
 
-def build_dataset_name(dataset_str: str) -> str:
-    result_str = ""
-    if "hopper" in dataset_str:
-        result_str = "hopper"
-    elif "walker2d" in dataset_str:
-        result_str = "walker2d"
-    elif "halfcheetah" in dataset_str:
-        result_str = "halfcheetah"
-    elif "ant" in dataset_str:
-        result_str = "ant"
-    elif "humanoid" in dataset_str:
-        result_str = "humanoid"
-    elif result_str == "":
-        print(f"[!] Warning: Unrecognized dataset string '{dataset_str}'!")
-        exit(1)
-    if "expert" in dataset_str:
-        result_str += "/expert"
-    elif "simple" in dataset_str:
-        result_str += "/simple"
-    elif "medium-replay" in dataset_str:
-        result_str += "/medium-replay"
-    elif "medium" in dataset_str:
-        result_str += "/medium"
-    return result_str
-
-
 def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dataset_number: int = 0):
     """Orchestrates multi-seeded decoupled training and benchmarking runs sequentially."""
     # 1. Load primary configurations matrix
@@ -84,7 +30,8 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
         config = yaml.safe_load(f)
 
     seeds = config.get("seeds", [42, 1337, 2026])
-    env_name = datasets_global[dataset_number]
+    env_name = dataset_utils.DATASETS[dataset_number]
+    converted_dataset_name = dataset_utils.get_path_from_dataset_name(env_name)
 
     print("-------------------------------------------------------------------------\n")
     # The absolute value formatting handles the LaTeX wrapper replacement rule cleanly
@@ -101,7 +48,6 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
         print(f"[+] Starting execution pipeline slice for Seed: {seed}\n")
 
         # Build deterministic directory pathing trees for artifacts
-        converted_dataset_name = build_dataset_name(env_name)
         result_dir = os.path.join(
             base_output_dir, converted_dataset_name, f"seed_{seed}")
         print(f"[+] Output artifacts will be stored in: {result_dir}\n")
@@ -116,10 +62,10 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
             "--config", config_path,
             "--seed", str(seed),
             "--output_path", model_path,
-            "--environment", datasets_global[dataset_number]
+            "--environment", env_name
         ]
 
-        print(f"[1/2] Invoking training worker script...")
+        print("[1/2] Invoking training worker script...")
         # Check if the model already exists to avoid redundant training
         result = check_agent_training_completion(model_path, config["n_steps"])
         if result:
@@ -139,19 +85,19 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
             "--seed", str(seed),
             "--eval_episodes", str(eval_episodes),
             "--metrics_output", metrics_path,
-            "--environment", datasets_global[dataset_number]
+            "--environment", env_name
         ]
-        print(f"[2/2] Invoking deterministic simulator benchmarking engine...")
+        print("[2/2] Invoking deterministic simulator benchmarking engine...")
         # Check if the metrics file already exists to avoid redundant benchmarking
         result = check_agent_benchmark_completion(metrics_path)
         if result:
             print(
-                f"[!] Warning: Metrics file already exists for dataset index {dataset_number}. Skipping benchmarking evaluation.")
+                f"Warning: Metrics file already exists for dataset index {dataset_number}. Skipping benchmarking evaluation.")
         else:
             bench_process = subprocess.run(bench_cmd, check=True)
             if bench_process.returncode != 0:
                 raise RuntimeError(
-                    f"[!] Benchmarking suite crashed on seed {seed} profile processing.")
+                    f"Benchmarking suite crashed on seed {seed} profile processing.")
 
         # --- Stage C: Telemetry Slice Reading ---
         with open(metrics_path, "r") as f:
@@ -172,7 +118,7 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
         print(
             f" Seed {seed:4d} | Raw Mean: {data['mean_raw_score']:8.2f} | D4RL Score: {data['d4rl_normalized_score']:6.2f}%")
     print("----------------------------------------------------------------\n")
-    print(" OVERALL SYSTEM PERFORMANCE PROFILE:")
+    print("OVERALL SYSTEM PERFORMANCE PROFILE:")
     print(
         f" Aggregate Normalized D4RL Score: {mean_aggregate:.2f}% ± {std_aggregate:.2f}%")
     print("----------------------------------------------------------------\n")
@@ -210,11 +156,11 @@ if __name__ == "__main__":
                         help="Evaluation episode quantity per seed sweep")
     args = parser.parse_args()
 
-    for dataset_number in range(len(datasets_global)):
+    for dataset_number in range(len(dataset_utils.DATASETS)):
 
         print("---------------------------------STARTING PIPELINE EXECUTION----------------------------------------\n")
         print(
-            f"\n\n[+] Starting Pipeline Execution for Dataset Index: {datasets_global[dataset_number]}\n")
+            f"\n\n[+] Starting Pipeline Execution for Dataset Index: {dataset_utils.DATASETS[dataset_number]}\n")
         run_pipeline(
             config_path=args.config,
             base_output_dir=args.output_dir,
