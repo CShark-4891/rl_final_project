@@ -3,7 +3,6 @@ import os
 import json
 import glob
 import pandas as pd
-import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 
@@ -67,7 +66,7 @@ class OfflineRLMetaPredictor:
 
     def cross_validate_with_real_world(self, cql_runs_dir, profiles_dir):
         """
-        Crawls the pipeline results, grabs real-world returns, matches them 
+        Crawls the pipeline results, grabs real-world returns, matches them
         with feature profiles, and evaluates the predictor's precision.
         """
         print("\n=========================================================================")
@@ -136,7 +135,7 @@ class OfflineRLMetaPredictor:
 
         mean_absolute_error = eval_df["Absolute Error"].mean()
         print("\n-------------------------------------------------------------------------")
-        print(f"[+] METRIC PERFORMANCE SUMMARY:")
+        print("[+] METRIC PERFORMANCE SUMMARY:")
         print(
             f"   Overall Meta-Predictor Mean Absolute Error (MAE): {mean_absolute_error:.4f}")
         print("=========================================================================\n")

@@ -22,7 +22,8 @@ def save_profile(profile, output_dir="dataset_profiles"):
 
 
 def calculate_entropy(values, bins=50, value_range=None):
-    histogram, _ = np.histogram(values, bins=bins, range=value_range, density=True)
+    histogram, _ = np.histogram(
+        values, bins=bins, range=value_range, density=True)
     histogram = histogram[histogram > 0]
 
     if len(histogram) == 0:
@@ -102,8 +103,10 @@ def analyze_dataset(env_name, clusters=20):
     )
     state_labels = state_model.fit_predict(scaled_states)
 
-    state_cluster_coverage = float(len(np.unique(state_labels)) / n_state_clusters)
-    state_entropy_coverage = normalized_cluster_entropy(state_labels, n_state_clusters)
+    state_cluster_coverage = float(
+        len(np.unique(state_labels)) / n_state_clusters)
+    state_entropy_coverage = normalized_cluster_entropy(
+        state_labels, n_state_clusters)
 
     # Metric 1.2: Action variance and entropy -> Action Coverage
     action_variance = float(np.mean(np.var(actions, axis=0)))
@@ -149,7 +152,8 @@ def analyze_dataset(env_name, clusters=20):
     )
     traj_labels = trajectory_model.fit_predict(scaled_features)
 
-    trajectory_diversity = normalized_cluster_entropy(traj_labels, n_traj_clusters)
+    trajectory_diversity = normalized_cluster_entropy(
+        traj_labels, n_traj_clusters)
 
     return {
         "Dataset": env_name,
@@ -205,7 +209,7 @@ if __name__ == "__main__":
         "mujoco/humanoid/medium-v0",
         "mujoco/humanoid/expert-v0"
     ]
-    
+
     for dataset in datasets:
         print(f"[+] Analyzing {dataset}")
         profile = analyze_dataset(dataset)
