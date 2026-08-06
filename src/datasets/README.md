@@ -1,3 +1,0 @@
-# Datasets Cache - Deprecated
-
-This directory is deprecated. It was used in the original project to store downloaded datasets for offline reinforcement learning, but the current implementation uses [Minari](https://minari.farama.org/) to handle dataset caching and loading automatically. Meaning that the datasets are now managed by Minari and do not need to be stored in this directory and loaded at runtime.
