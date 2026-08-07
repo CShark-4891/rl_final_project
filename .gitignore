@@ -1,5 +1,6 @@
 .venv/
 venv/
+envs/
 __pycache__/
 *.pyc
 src/rl_final_project.egg-info/dependency_links.txt
