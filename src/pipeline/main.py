@@ -2,6 +2,7 @@
 import argparse
 import os
 import subprocess
+import sys
 import yaml
 import json
 import numpy as np
@@ -58,11 +59,12 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
 
         # --- Stage A: Isolated Subprocess Training Execution ---
         train_cmd = [
-            "python", "train.py",
-            "--config", config_path,
+            sys.executable,  # this will be the correct python environment main.py is also launched from
+            "train.py",
+            "--config_path", config_path,
             "--seed", str(seed),
-            "--output_path", model_path,
-            "--environment", env_name
+            "--model_path", model_path,
+            "--env_name", env_name
         ]
 
         print("[1/2] Invoking training worker script...")
@@ -79,13 +81,14 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
 
         # --- Stage B: Isolated Subprocess Benchmarking Evaluation ---
         bench_cmd = [
-            "python", "benchmark.py",
-            "--config", config_path,
+            sys.executable,
+            "benchmark.py",
+            "--config_path", config_path,
             "--model_path", model_path,
             "--seed", str(seed),
             "--eval_episodes", str(eval_episodes),
-            "--metrics_output", metrics_path,
-            "--environment", env_name
+            "--metrics_path", metrics_path,
+            "--env_name", env_name
         ]
         print("[2/2] Invoking deterministic simulator benchmarking engine...")
         # Check if the metrics file already exists to avoid redundant benchmarking

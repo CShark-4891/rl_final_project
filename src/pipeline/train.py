@@ -18,40 +18,28 @@ def set_seed(seed: int):
     d3rlpy.seed(seed)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Train CQL on d3rlpy dataset with a specific seed")
-    parser.add_argument(
-        "--config", type=str, default="configs/cql_default.yaml", help="Path to the config file")
-    parser.add_argument("--seed", type=int, required=True,
-                        help="Random seed for this training run")
-    parser.add_argument("--output_path", type=str, required=True,
-                        help="Destination path to save the trained model .d3 file")
-    parser.add_argument("--environment", type=str, required=True,
-                        help="Environment name for dataset loading")
-    args = parser.parse_args()
-
+def train_model(config_path: str, seed: int, model_path: str, env_name: str):
     # 1. Load configuration file
-    if not os.path.exists(args.config):
-        raise FileNotFoundError(f"[!] Config file not found at {args.config}")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"[!] Config file not found at {config_path}")
 
-    with open(args.config, "r") as f:
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     # 2. Set the deterministic seed
-    set_seed(args.seed)
+    set_seed(seed)
     print("===================TRAINING.PY====================================\n")
     print(f"Torch Is Available: {torch.cuda.is_available()}\n")
     print(f"CUDA Device Name: {torch.cuda.get_device_name(0)}" if torch.cuda.is_available(
     ) else "CPU\n")
     print("==================================================================\n")
-    print(f"Starting Training | Seed: {args.seed} | Env: {args.environment}\n")
+    print(f"Starting Training | Seed: {seed} | Env: {env_name}\n")
     print("==================================================================\n")
 
     # 3. Load the dataset using Minari (D4RL wrapper)
-    dataset, env = d3rlpy.datasets.get_minari(args.environment)
+    dataset, env = d3rlpy.datasets.get_minari(env_name)
     alpha_override = 0.0
-    if "halfcheetah" in args.environment:
+    if "halfcheetah" in env_name:
         alpha_override = 1.0
     else:
         alpha_override = 5.0  # Default robust choice for Walker2d and Hopper
@@ -70,7 +58,8 @@ def main():
     # Create the learnable model instance assigned to the requested device
     device = config["device"]
     if device != "cpu" and not torch.cuda.is_available():
-        print(f"[!] Requested device '{device}' but CUDA is unavailable. Falling back to CPU.\n")
+        print(
+            f"[!] Requested device '{device}' but CUDA is unavailable. Falling back to CPU.\n")
         device = "cpu"
     algo = cql_config.create(device=device)
 
@@ -80,18 +69,29 @@ def main():
         n_steps=config["n_steps"],
         # Creates clean structural checkpoints/logs every 10k steps
         n_steps_per_epoch=10000,
-        experiment_name=f"CQL_{args.environment}_seed_{args.seed}",
+        experiment_name=f"CQL_{env_name}_seed_{seed}",
         with_timestamp=False,
         show_progress=True
     )
 
     # 6. Save out the model bundle (saves architecture + weights for easy reloading)
-    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
-    algo.save(args.output_path)
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    algo.save(model_path)
     print(
-        f"[+] Successfully saved trained model architecture and parameters to {args.output_path}\n")
+        f"[+] Successfully saved trained model architecture and parameters to {model_path}\n")
     print("======================TRAINING.PY END============================================\n")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Train CQL on d3rlpy dataset with a specific seed")
+    parser.add_argument(
+        "--config_path", type=str, default="configs/cql_default.yaml", help="Path to the config file")
+    parser.add_argument("--seed", type=int, required=True,
+                        help="Random seed for this training run")
+    parser.add_argument("--model_path", type=str, required=True,
+                        help="Destination path to save the trained model .d3 file")
+    parser.add_argument("--env_name", type=str, required=True,
+                        help="Environment name for dataset loading")
+    args = parser.parse_args()
+    train_model(args)
