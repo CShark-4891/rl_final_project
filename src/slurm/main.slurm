@@ -2,7 +2,7 @@
 #SBATCH --job-name=rl-main
 #SBATCH --output=slurm/%x_%j.out
 #SBATCH --error=slurm/%x_%j.err
-#SBATCH --time=01:00:00
+#SBATCH --time=03:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 # #SBATCH --mail-type=END,FAIL
@@ -54,7 +54,7 @@ echo "Node: ${SLURM_NODELIST}"
 
 # Conda-Umgebung laden (siehe SETUP.md: envs/automl-env, Python 3.12 + CUDA 12.8)
 module load miniforge3
-source activate envs/automl-env
+source activate ../../envs/rl-env
 
 # Debug-Infos
 python --version
