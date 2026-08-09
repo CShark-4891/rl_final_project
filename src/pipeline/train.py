@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import yaml
 import d3rlpy
+import pipeline.dataset_utils as dataset_utils
 
 
 def set_seed(seed: int):
@@ -36,13 +37,13 @@ def train_model(config_path: str, seed: int, model_path: str, env_name: str):
     print(f"Starting Training | Seed: {seed} | Env: {env_name}\n")
     print("==================================================================\n")
 
-    # 3. Load the dataset using Minari (D4RL wrapper)
-    dataset, env = d3rlpy.datasets.get_minari(env_name)
+    # 3. Load the dataset (Minari for MuJoCo, d3rlpy's built-in loader for demo envs)
+    dataset, env = dataset_utils.load_offline_dataset(env_name)
     alpha_override = 0.0
     if "halfcheetah" in env_name:
         alpha_override = 1.0
     else:
-        alpha_override = 5.0  # Default robust choice for Walker2d and Hopper
+        alpha_override = 5.0  # Default choice for the remaining environments (Walker2d, Hopper, Ant, Pendulum demo)
     print("[!] Alpha Override for CQL Conservative Weight: ", alpha_override, "\n")
 
     # 4. Initialize the CQL Algorithm using Config class
@@ -94,4 +95,4 @@ if __name__ == "__main__":
     parser.add_argument("--env_name", type=str, required=True,
                         help="Environment name for dataset loading")
     args = parser.parse_args()
-    train_model(args)
+    train_model(args.config_path, args.seed, args.model_path, args.env_name)

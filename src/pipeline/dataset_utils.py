@@ -1,5 +1,15 @@
 """Utilities to manage datasets, model saving, environments, etc."""
+import numpy as np
+import d3rlpy
 
+# d3rlpy's built-in Pendulum/CartPole loaders create their env via the
+# unmaintained legacy `gym` package (not `gymnasium`), whose env-checker
+# wrapper references `np.bool8`, removed in NumPy 2.0 - restore the alias so
+# `env.step(...)` doesn't crash. Minari/Gymnasium-based envs are unaffected.
+if not hasattr(np, "bool8"):
+    np.bool8 = np.bool_
+
+PENDULUM_DEMO_DATASET = "classic_control/pendulum/replay-v0"
 
 DATASETS = [
     # --- 1. Hopper Suite ---
@@ -26,6 +36,9 @@ DATASETS = [
     #      "mujoco/humanoid/simple-v0",
     #      "mujoco/humanoid/medium-v0",
     #      "mujoco/humanoid/expert-v0"
+
+    # --- 6. Classic Control Demo (non-MuJoCo, no D4RL reference) ---
+    PENDULUM_DEMO_DATASET,
 ]
 
 # Official D4RL reference baselines for normalized scoring calculations
@@ -67,6 +80,8 @@ __DATASET_TO_GYM_ID = {
     #      "mujoco/humanoid/simple-v0": "Humanoid-v4",
     #      "mujoco/humanoid/medium-v0": "Humanoid-v4",
     #      "mujoco/humanoid/expert-v0": "Humanoid-v4"
+
+    PENDULUM_DEMO_DATASET: "Pendulum-v1",
 }
 
 __DATASET_TO_REF_ID = {
@@ -113,6 +128,8 @@ __DATASET_TO_PATH = {
     #      "mujoco/humanoid/simple-v0": "humanoid/simple",
     #      "mujoco/humanoid/medium-v0": "humanoid/medium",
     #      "mujoco/humanoid/expert-v0": "humanoid/expert"
+
+    PENDULUM_DEMO_DATASET: "pendulum/replay",
 }
 
 
@@ -126,6 +143,11 @@ def get_ref_score_from_dataset_name(dataset_str: str) -> float:
         raise ValueError(
             f"Reference scores for '{ref_id}' are not available in D4RL_REF_SCORES.")
     return D4RL_REF_SCORES[ref_id]
+
+
+def has_ref_score(dataset_str: str) -> bool:
+    """Returns whether a D4RL reference score is available for a given dataset string."""
+    return dataset_str in __DATASET_TO_REF_ID
 
 
 def get_gym_id_from_dataset_name(dataset_str: str) -> str:
@@ -142,3 +164,13 @@ def get_path_from_dataset_name(dataset_str: str) -> str:
         raise ValueError(
             f"Dataset '{dataset_str}' is not recognized. Please check the dataset string.")
     return __DATASET_TO_PATH[dataset_str]
+
+
+def load_offline_dataset(dataset_str: str):
+    """Loads the (ReplayBuffer, gym.Env) pair for a dataset string."""
+    if dataset_str not in DATASETS:
+        raise ValueError(
+            f"Dataset '{dataset_str}' is not recognized. Please check the dataset string.")
+    if dataset_str == PENDULUM_DEMO_DATASET:
+        return d3rlpy.datasets.get_pendulum(dataset_type="replay")
+    return d3rlpy.datasets.get_minari(dataset_str)

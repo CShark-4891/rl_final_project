@@ -32,7 +32,7 @@ def perform_benchmark(config_path: str, model_path: str, seed: int, eval_episode
 
     # 2. Build tracking environment
     # Load the same environment used during training
-    dataset, env = d3rlpy.datasets.get_minari(env_name)
+    dataset, env = dataset_utils.load_offline_dataset(env_name)
 
     gym_id = env.spec.id if env.spec is not None else env_name
 
@@ -67,15 +67,21 @@ def perform_benchmark(config_path: str, model_path: str, seed: int, eval_episode
     # 4. Calculate final metrics profiles
     mean_raw_score = float(np.mean(episode_returns))
     std_raw_score = float(np.std(episode_returns))
-    normalized_d4rl_score = __compute_adjusted_d4rl_score(
-        env_name, mean_raw_score)
+    if dataset_utils.has_ref_score(env_name):
+        normalized_d4rl_score = __compute_adjusted_d4rl_score(
+            env_name, mean_raw_score)
+    else:
+        normalized_d4rl_score = None
+        print(
+            f"[!] No D4RL reference score available for '{env_name}'; skipping normalized-score computation.")
+    d4rl_score_str = f"{normalized_d4rl_score:.2f}%" if normalized_d4rl_score is not None else "N/A"
     print("===============================================================\n")
     print(f"FINAL EVALUATION PROFILE FOR SEED {seed} ")
     print("===============================================================\n")
     print(f" Target Environment:       {gym_id}")
     print(
         f" Raw Mean Return:          {mean_raw_score:.2f} ± {std_raw_score:.2f}")
-    print(f"D4RL Normalized Score:    {normalized_d4rl_score:.2f}%")
+    print(f"D4RL Normalized Score:    {d4rl_score_str}")
     print("===============================================================\n")
 
     # 5. Export structured telemetry metrics

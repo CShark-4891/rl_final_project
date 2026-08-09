@@ -108,22 +108,31 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
             summary_metrics[seed] = seed_data
 
     # 3. Compile aggregated mathematical analytics across all seeds
-    normalized_scores = [meta["d4rl_normalized_score"]
-                         for meta in summary_metrics.values()]
-    mean_aggregate = np.mean(normalized_scores)
-    std_aggregate = np.std(normalized_scores)
+    has_ref = dataset_utils.has_ref_score(env_name)
+    if has_ref:
+        normalized_scores = [meta["d4rl_normalized_score"]
+                             for meta in summary_metrics.values()]
+        mean_aggregate = float(np.mean(normalized_scores))
+        std_aggregate = float(np.std(normalized_scores))
+    else:
+        mean_aggregate = None
+        std_aggregate = None
 
     # 4. Format a comprehensive summary profile on screen
     print("----------------------------------------------------------------\n")
     print("[!] PIPELINE RUN COMPLETION: AGGREGATED TELEMETRY ")
     print("----------------------------------------------------------------\n")
     for seed, data in summary_metrics.items():
+        score_str = f"{data['d4rl_normalized_score']:6.2f}%" if data['d4rl_normalized_score'] is not None else "   N/A"
         print(
-            f" Seed {seed:4d} | Raw Mean: {data['mean_raw_score']:8.2f} | D4RL Score: {data['d4rl_normalized_score']:6.2f}%")
+            f" Seed {seed:4d} | Raw Mean: {data['mean_raw_score']:8.2f} | D4RL Score: {score_str}")
     print("----------------------------------------------------------------\n")
     print("OVERALL SYSTEM PERFORMANCE PROFILE:")
-    print(
-        f" Aggregate Normalized D4RL Score: {mean_aggregate:.2f}% ± {std_aggregate:.2f}%")
+    if mean_aggregate is not None:
+        print(
+            f" Aggregate Normalized D4RL Score: {mean_aggregate:.2f}% ± {std_aggregate:.2f}%")
+    else:
+        print(" Aggregate Normalized D4RL Score: N/A (no D4RL reference for this dataset)")
     print("----------------------------------------------------------------\n")
 
     # 5. Export comprehensive pipeline data payload
@@ -131,8 +140,8 @@ def run_pipeline(config_path: str, base_output_dir: str, eval_episodes: int, dat
         "environment": env_name,
         "configuration": config,
         "aggregate_performance": {
-            "mean_d4rl_score": float(mean_aggregate),
-            "std_d4rl_score": float(std_aggregate)
+            "mean_d4rl_score": mean_aggregate,
+            "std_d4rl_score": std_aggregate
         },
         "seed_level_telemetry": summary_metrics
     }
