@@ -1,0 +1,26 @@
+{
+    "Dataset": "mujoco/walker2d/expert-v0",
+    "Size": {
+        "Transitions": 999190,
+        "Episodes": 1000,
+        "Average Episode Length": 999.19
+    },
+    "Coverage": {
+        "State Spread": 2.159605254954518,
+        "State Cluster Coverage": 1.0,
+        "State Entropy": 0.9609566622565592,
+        "Action Variance": 0.31339117884635925,
+        "Action Entropy": 3.4971207641963082
+    },
+    "Quality": {
+        "Mean Return": 6847.792741361276,
+        "Std Return": 190.46582953184353,
+        "Min Return": 2664.171691972849,
+        "Max Return": 6972.797332575603,
+        "Median Return": 6870.714355565737,
+        "Reward Sparsity": 0.0
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.9272664173887295
+    }
+}

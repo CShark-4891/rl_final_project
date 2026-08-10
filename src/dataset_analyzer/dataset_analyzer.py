@@ -6,7 +6,9 @@ import d3rlpy
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import entropy
+import pipeline.dataset_utils as du
 
+PRINT_VERBOSE = True
 
 def save_profile(profile, output_dir="dataset_profiles"):
     os.makedirs(output_dir, exist_ok=True)
@@ -30,6 +32,49 @@ def calculate_entropy(values, bins=50, value_range=None):
         return 0.0
 
     return float(entropy(histogram))
+
+
+def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
+    """Plot one histogram per feature (column) of `data`, each as its own
+    subplot within a single matplotlib figure, and save it to `save_path`."""
+    import matplotlib.pyplot as plt
+
+    n_features = data.shape[1]
+    n_cols = min(4, n_features)
+    n_rows = int(np.ceil(n_features / n_cols))
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows), squeeze=False)
+
+    for feature in range(n_features):
+        row, col = divmod(feature, n_cols)
+        ax = axes[row][col]
+        ax.hist(data[:, feature], bins=n_bins,
+                color="#2a78d6", edgecolor="#fcfcfb", linewidth=0.5)
+        ax.set_title(f"{feature_label} {feature}", fontsize=10, color="#0b0b0b")
+        ax.set_xlabel("Value", fontsize=8, color="#52514e")
+        ax.set_ylabel("Count", fontsize=8, color="#52514e")
+        ax.tick_params(labelsize=7, colors="#898781")
+        ax.grid(axis="y", color="#e1e0d9", linewidth=0.5)
+        ax.set_axisbelow(True)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        for spine in ("left", "bottom"):
+            ax.spines[spine].set_color("#c3c2b7")
+
+    # Hide any unused subplot slots when n_features doesn't fill the grid
+    for empty in range(n_features, n_rows * n_cols):
+        row, col = divmod(empty, n_cols)
+        axes[row][col].axis("off")
+
+    fig.patch.set_facecolor("#fcfcfb")
+    fig.suptitle(f"{feature_label} Distributions ({n_bins} bins)",
+                 fontsize=12, color="#0b0b0b")
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.savefig(save_path, dpi=150, facecolor=fig.get_facecolor())
+    plt.close(fig)
+
+    print(f"[+] Saved: {save_path}")
 
 
 def normalized_cluster_entropy(labels, n_clusters):
@@ -59,7 +104,7 @@ def load_minari_dataset(env_name):
     ]
 
 
-def analyze_dataset(env_name, clusters=20):
+def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir="dataset_profiles"):
     print(f"\n[+] Loading {env_name}")
 
     episodes = load_minari_dataset(env_name)
@@ -84,6 +129,41 @@ def analyze_dataset(env_name, clusters=20):
     lengths = np.array(
         [len(ep["rewards"]) for ep in episodes]
     )
+    
+    if PRINT_VERBOSE:
+        print(f"[+] States shape: {states.shape}")
+        print(f"[+] Actions shape: {actions.shape}")
+        print(f"[+] Rewards shape: {rewards.shape}")
+        print(f"[+] Returns shape: {returns.shape}")
+        print(f"[+] Lengths shape: {lengths.shape}")
+        
+    if PRINT_VERBOSE:
+        for state_feature in range(states.shape[1]):
+            print(f"[+] State Feature {state_feature} | min = {np.min(states[:, state_feature]):.4f}, max = {np.max(states[:, state_feature]):.4f}, mean = {np.mean(states[:, state_feature]):.4f}, std = {np.std(states[:, state_feature]):.4f}")
+
+        for action_feature in range(actions.shape[1]):
+            print(f"[+] Action Feature {action_feature} | min = {np.min(actions[:, action_feature]):.4f}, max = {np.max(actions[:, action_feature]):.4f}, mean = {np.mean(actions[:, action_feature]):.4f}, std = {np.std(actions[:, action_feature]):.4f}")
+
+
+    if PRINT_VERBOSE:
+        print(f"[+] Reward | min = {np.min(rewards):.4f}, max = {np.max(rewards):.4f}, mean = {np.mean(rewards):.4f}, std = {np.std(rewards):.4f}")
+    
+    if PRINT_VERBOSE:
+        # create histogram of state and action distributions and plot them
+        hist_dir = os.path.join(output_dir, "histograms")
+        os.makedirs(hist_dir, exist_ok=True)
+        name = env_name.replace("/", "_")
+
+        plot_feature_histograms(
+            states, "State Feature",
+            os.path.join(hist_dir, f"{name}_state_histograms.png"),
+            n_bins=hist_bins
+        )
+        plot_feature_histograms(
+            actions, "Action Feature",
+            os.path.join(hist_dir, f"{name}_action_histograms.png"),
+            n_bins=hist_bins
+        )
 
     n_state_clusters = min(clusters, len(states))
     n_traj_clusters = min(clusters, len(episodes))
@@ -197,21 +277,22 @@ if __name__ == "__main__":
         "mujoco/hopper/simple-v0",
         "mujoco/hopper/medium-v0",
         "mujoco/hopper/expert-v0",
-        "mujoco/hopper/medium-replay-v0",
+        # "mujoco/hopper/medium-replay-v0",
 
         # --- 4. Ant Suite ---
         "mujoco/ant/simple-v0",
-        "mujoco/ant/medium-v0",
-        "mujoco/ant/expert-v0",
+        # "mujoco/ant/medium-v0",
+        # "mujoco/ant/expert-v0",
 
-        # --- 5. Humanoid Suite ---
-        "mujoco/humanoid/simple-v0",
-        "mujoco/humanoid/medium-v0",
-        "mujoco/humanoid/expert-v0"
+        # # --- 5. Humanoid Suite ---
+        # "mujoco/humanoid/simple-v0",
+        # "mujoco/humanoid/medium-v0",
+        # "mujoco/humanoid/expert-v0"
     ]
 
     for dataset in datasets:
         print(f"[+] Analyzing {dataset}")
         profile = analyze_dataset(dataset)
+        #break
         print(json.dumps(profile, indent=4))
         save_profile(profile)
