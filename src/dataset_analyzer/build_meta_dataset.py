@@ -4,6 +4,25 @@ import glob
 import pandas as pd
 import numpy as np
 
+# D4RL reference baselines for normalizing raw scores
+D4RL_REF_SCORES = {
+    "halfcheetah": {"random": -280.05, "expert": 12135.0},
+    "hopper":      {"random": -20.0,    "expert": 3234.3},
+    "walker2d":    {"random": 1.62,     "expert": 4592.3},
+    "ant":         {"random": -325.6,   "expert": 3818.5},
+}
+
+
+def _normalize_raw_score(env_family: str, raw_score: float) -> float | None:
+    """Normalize a raw return to a D4RL percentage using reference bounds."""
+    if env_family not in D4RL_REF_SCORES:
+        return None
+    ref = D4RL_REF_SCORES[env_family]
+    denom = ref["expert"] - ref["random"]
+    if denom == 0:
+        return None
+    return 100.0 * (raw_score - ref["random"]) / denom
+
 
 def main():
     print("=========================================================")
@@ -55,14 +74,41 @@ def main():
                 with open(metrics_json, "r") as f:
                     data = json.load(f)
 
-                # Extract pre-calculated target from your report structure
-                if "aggregate_performance" in data and "mean_d4rl_score" in data["aggregate_performance"]:
-                    normalized_target = data["aggregate_performance"]["mean_d4rl_score"]
-                else:
-                    scores = [telemetry["d4rl_normalized_score"]
-                              for telemetry in data.get("seed_level_telemetry", {}).values()]
-                    if scores:
-                        normalized_target = np.mean(scores)
+                # Re-normalize from raw scores rather than trusting the stored
+                # mean_d4rl_score, which may have been computed with missing
+                # reference values (e.g., simple-v2 datasets).
+                seed_data = data.get("seed_level_telemetry", {})
+                if seed_data:
+                    # Determine env family from the environment string
+                    env_name_str = data.get("environment", "")
+                    env_family = None
+                    for ef in D4RL_REF_SCORES:
+                        if ef in env_name_str.lower():
+                            env_family = ef
+                            break
+
+                    if env_family:
+                        raw_scores = [
+                            t["mean_raw_score"]
+                            for t in seed_data.values()
+                            if t.get("mean_raw_score") is not None
+                        ]
+                        if raw_scores:
+                            mean_raw = float(np.mean(raw_scores))
+                            normalized_target = _normalize_raw_score(env_family, mean_raw)
+
+                # Fallback: use stored mean_d4rl_score if re-normalization failed
+                if normalized_target is None:
+                    agg = data.get("aggregate_performance", {})
+                    if "mean_d4rl_score" in agg:
+                        normalized_target = agg["mean_d4rl_score"]
+                    else:
+                        scores = [
+                            telemetry["d4rl_normalized_score"]
+                            for telemetry in seed_data.values()
+                        ]
+                        if scores:
+                            normalized_target = float(np.mean(scores))
 
             except Exception as e:
                 print(
