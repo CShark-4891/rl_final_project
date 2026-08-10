@@ -2,7 +2,7 @@
 #SBATCH --job-name=rl-main
 #SBATCH --output=slurm/%x_%j.out
 #SBATCH --error=slurm/%x_%j.err
-#SBATCH --time=03:00:00
+#SBATCH --time=10:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 # #SBATCH --mail-type=END,FAIL

@@ -1,0 +1,85 @@
+{
+    "environment": "classic_control/pendulum/replay-v0",
+    "configuration": {
+        "env_name": "mujoco/walker2d/medium-v0",
+        "n_steps": 200000,
+        "batch_size": 256,
+        "learning_rate_critic": 0.0003,
+        "learning_rate_actor": 3e-05,
+        "gamma": 0.99,
+        "tau": 0.005,
+        "conservative_weight": 5.0,
+        "seeds": [
+            42,
+            420,
+            6769
+        ],
+        "device": "cuda:0"
+    },
+    "aggregate_performance": {
+        "mean_d4rl_score": null,
+        "std_d4rl_score": null
+    },
+    "seed_level_telemetry": {
+        "42": {
+            "env_name": "classic_control/pendulum/replay-v0",
+            "gym_id": "Pendulum-v1",
+            "evaluation_seed": 42,
+            "mean_raw_score": -247.25655088539875,
+            "std_raw_score": 145.37944521550727,
+            "d4rl_normalized_score": null,
+            "all_episode_returns": [
+                -241.88795229408186,
+                -127.55830973765832,
+                -356.84269166323435,
+                -129.33732407181063,
+                -500.24767129297163,
+                -122.74863377792977,
+                -128.31138228327004,
+                -127.91286573657979,
+                -239.22677957687364,
+                -498.4918984195774
+            ]
+        },
+        "420": {
+            "env_name": "classic_control/pendulum/replay-v0",
+            "gym_id": "Pendulum-v1",
+            "evaluation_seed": 420,
+            "mean_raw_score": -1341.175863043045,
+            "std_raw_score": 15.57826710520579,
+            "d4rl_normalized_score": null,
+            "all_episode_returns": [
+                -1357.2997125392544,
+                -1334.7442806293839,
+                -1349.6706517180428,
+                -1343.2857531865204,
+                -1355.5967553175697,
+                -1301.5045932291907,
+                -1337.307594273863,
+                -1348.8923412533165,
+                -1351.525849660408,
+                -1331.9310986229018
+            ]
+        },
+        "6769": {
+            "env_name": "classic_control/pendulum/replay-v0",
+            "gym_id": "Pendulum-v1",
+            "evaluation_seed": 6769,
+            "mean_raw_score": -316.5671596162335,
+            "std_raw_score": 153.97917696545298,
+            "d4rl_normalized_score": null,
+            "all_episode_returns": [
+                -352.27102562271585,
+                -488.79284022650234,
+                -130.45206852600467,
+                -246.564898604381,
+                -355.65238972322936,
+                -5.683927951375139,
+                -490.7440259485747,
+                -495.84918468228403,
+                -351.8132428707999,
+                -247.84799200646762
+            ]
+        }
+    }
+}
