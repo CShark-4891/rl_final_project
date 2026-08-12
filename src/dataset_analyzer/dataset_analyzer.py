@@ -6,11 +6,13 @@ import d3rlpy
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import entropy
-import pipeline.dataset_utils as du
+
+from configs import default_paths
 
 PRINT_VERBOSE = True
 
-def save_profile(profile, output_dir="dataset_profiles"):
+
+def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
     os.makedirs(output_dir, exist_ok=True)
 
     # Clean the slash characters from Minari path strings for valid file systems
@@ -51,7 +53,8 @@ def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
         ax = axes[row][col]
         ax.hist(data[:, feature], bins=n_bins,
                 color="#2a78d6", edgecolor="#fcfcfb", linewidth=0.5)
-        ax.set_title(f"{feature_label} {feature}", fontsize=10, color="#0b0b0b")
+        ax.set_title(f"{feature_label} {feature}",
+                     fontsize=10, color="#0b0b0b")
         ax.set_xlabel("Value", fontsize=8, color="#52514e")
         ax.set_ylabel("Count", fontsize=8, color="#52514e")
         ax.tick_params(labelsize=7, colors="#898781")
@@ -71,6 +74,7 @@ def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
     fig.suptitle(f"{feature_label} Distributions ({n_bins} bins)",
                  fontsize=12, color="#0b0b0b")
     fig.tight_layout(rect=[0, 0, 1, 0.96])
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     fig.savefig(save_path, dpi=150, facecolor=fig.get_facecolor())
     plt.close(fig)
 
@@ -104,7 +108,7 @@ def load_minari_dataset(env_name):
     ]
 
 
-def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir="dataset_profiles"):
+def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
     episodes = load_minari_dataset(env_name)
@@ -129,14 +133,14 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir="dataset_pro
     lengths = np.array(
         [len(ep["rewards"]) for ep in episodes]
     )
-    
+
     if PRINT_VERBOSE:
         print(f"[+] States shape: {states.shape}")
         print(f"[+] Actions shape: {actions.shape}")
         print(f"[+] Rewards shape: {rewards.shape}")
         print(f"[+] Returns shape: {returns.shape}")
         print(f"[+] Lengths shape: {lengths.shape}")
-        
+
     if PRINT_VERBOSE:
         for state_feature in range(states.shape[1]):
             print(f"[+] State Feature {state_feature} | min = {np.min(states[:, state_feature]):.4f}, max = {np.max(states[:, state_feature]):.4f}, mean = {np.mean(states[:, state_feature]):.4f}, std = {np.std(states[:, state_feature]):.4f}")
@@ -144,26 +148,27 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir="dataset_pro
         for action_feature in range(actions.shape[1]):
             print(f"[+] Action Feature {action_feature} | min = {np.min(actions[:, action_feature]):.4f}, max = {np.max(actions[:, action_feature]):.4f}, mean = {np.mean(actions[:, action_feature]):.4f}, std = {np.std(actions[:, action_feature]):.4f}")
 
-
     if PRINT_VERBOSE:
-        print(f"[+] Reward | min = {np.min(rewards):.4f}, max = {np.max(rewards):.4f}, mean = {np.mean(rewards):.4f}, std = {np.std(rewards):.4f}")
-    
-    if PRINT_VERBOSE:
-        # create histogram of state and action distributions and plot them
-        hist_dir = os.path.join(output_dir, "histograms")
-        os.makedirs(hist_dir, exist_ok=True)
-        name = env_name.replace("/", "_")
+        print(
+            f"[+] Reward | min = {np.min(rewards):.4f}, max = {np.max(rewards):.4f}, mean = {np.mean(rewards):.4f}, std = {np.std(rewards):.4f}")
 
-        plot_feature_histograms(
-            states, "State Feature",
-            os.path.join(hist_dir, f"{name}_state_histograms.png"),
-            n_bins=hist_bins
-        )
-        plot_feature_histograms(
-            actions, "Action Feature",
-            os.path.join(hist_dir, f"{name}_action_histograms.png"),
-            n_bins=hist_bins
-        )
+    # create histogram of state and action distributions and plot them
+    hist_dir = os.path.join(output_dir, "histograms")
+    os.makedirs(hist_dir, exist_ok=True)
+    name = env_name.replace("/", "_")
+
+    plot_feature_histograms(
+        states, "State Feature",
+        os.path.join(
+            hist_dir, f"state_features\\{name}_state_histograms.png"),
+        n_bins=hist_bins
+    )
+    plot_feature_histograms(
+        actions, "Action Feature",
+        os.path.join(
+            hist_dir, f"action_features\\{name}_action_histograms.png"),
+        n_bins=hist_bins
+    )
 
     n_state_clusters = min(clusters, len(states))
     n_traj_clusters = min(clusters, len(episodes))
@@ -293,6 +298,6 @@ if __name__ == "__main__":
     for dataset in datasets:
         print(f"[+] Analyzing {dataset}")
         profile = analyze_dataset(dataset)
-        #break
+        # break
         print(json.dumps(profile, indent=4))
         save_profile(profile)

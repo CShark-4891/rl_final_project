@@ -13,24 +13,29 @@ Usage:
     python visualize_results.py --profiles-dir ../dataset_profiles
     python visualize_results.py --output-dir ../results/figures
 
+    # Plot performance/seed-consistency figures using published d3rlpy paper
+    # results (src/results/d3rlpy_paper_results/d4rl.py) instead of our own
+    # pipeline results, e.g. to compare against CQL, IQL, TD3+BC, ...
+    python visualize_results.py --paper-algorithm IQL
+
 Dependencies: matplotlib, seaborn, pandas, numpy, scikit-learn
 No GPU, d3rlpy, torch, or MuJoCo required.
 """
 
 import argparse
 import glob
+import importlib.util
 import json
 import os
-import sys
 import warnings
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import GradientBoostingRegressor
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -40,16 +45,20 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Colour-blind friendly palette (Wong, 2011)
 CB_PALETTE = {
-    "hopper":     "#0072B2",  # blue
-    "walker2d":   "#D55E00",  # vermillion
-    "halfcheetah": "#009E73", # green
-    "ant":        "#CC79A7",  # reddish purple
-    "humanoid":   "#F0E442",  # yellow
-    "pendulum":   "#56B4E9",  # sky blue
+    "hopper": "#0072B2",  # blue
+    "walker2d": "#D55E00",  # vermillion
+    "halfcheetah": "#009E73",  # green
+    "ant": "#CC79A7",  # reddish purple
+    "humanoid": "#F0E442",  # yellow
+    "pendulum": "#56B4E9",  # sky blue
 }
 
 ENV_ORDER = ["hopper", "walker2d", "halfcheetah"]
-TIER_ORDER = ["simple", "medium", "medium-replay", "expert"]
+# Includes both our own tiers (simple, expert) and the D4RL v0 tiers used by
+# the d3rlpy paper results (random, medium-expert), so the same plots work
+# with either data source.
+TIER_ORDER = ["simple", "random", "medium",
+              "medium-replay", "expert", "medium-expert"]
 
 # Mapping from internal env name to display label
 ENV_LABELS = {
@@ -63,9 +72,11 @@ ENV_LABELS = {
 
 TIER_LABELS = {
     "simple": "Simple",
+    "random": "Random",
     "medium": "Medium",
     "medium-replay": "Medium-Replay",
     "expert": "Expert",
+    "medium-expert": "Medium-Expert",
 }
 
 # Features used for meta-predictor and correlation analysis
@@ -105,10 +116,22 @@ RADAR_LABELS = [
 # These are used to re-normalize raw scores from pipeline results, ensuring
 # correct scores even if the original benchmark run used missing/incorrect refs.
 D4RL_REF_SCORES = {
-    "halfcheetah": {"random": -280.05, "expert": 12135.0},
-    "hopper":      {"random": -20.0,    "expert": 3234.3},
-    "walker2d":    {"random": 1.62,     "expert": 4592.3},
-    "ant":         {"random": -325.6,   "expert": 3818.5},
+    "halfcheetah": {
+        "random": -280.05,
+        "expert": 12135.0
+    },
+    "hopper": {
+        "random": -20.0,
+        "expert": 3234.3
+    },
+    "walker2d": {
+        "random": 1.62,
+        "expert": 4592.3
+    },
+    "ant": {
+        "random": -325.6,
+        "expert": 3818.5
+    },
 }
 
 
@@ -180,7 +203,8 @@ def _load_all_pipeline_reports(results_dir: str) -> pd.DataFrame:
             # Re-normalize from raw score (always correct) rather than trusting
             # the stored d4rl_normalized_score which may have been computed with
             # missing reference values.
-            normalized = _normalize_raw_score(env_family, raw) if raw is not None else None
+            normalized = _normalize_raw_score(
+                env_family, raw) if raw is not None else None
             seed_data.append({
                 "seed": int(seed_key),
                 "mean_raw_score": raw,
@@ -189,7 +213,8 @@ def _load_all_pipeline_reports(results_dir: str) -> pd.DataFrame:
             })
 
         # Re-compute aggregate from re-normalized seed scores
-        valid_scores = [sd["d4rl_normalized_score"] for sd in seed_data if sd["d4rl_normalized_score"] is not None]
+        valid_scores = [sd["d4rl_normalized_score"]
+                        for sd in seed_data if sd["d4rl_normalized_score"] is not None]
         if valid_scores:
             mean_d4rl = float(np.mean(valid_scores))
             std_d4rl = float(np.std(valid_scores))
@@ -257,6 +282,114 @@ def _load_meta_registry(profiles_dir: str) -> pd.DataFrame:
     return pd.read_csv(csv_path)
 
 
+def _load_paper_results() -> dict:
+    """Load the RESULTS dict from src/results/d3rlpy_paper_results/d4rl.py.
+
+    Loaded by file path (rather than package import) since this script is
+    also run standalone outside the src/ package.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    module_path = os.path.normpath(
+        os.path.join(script_dir, "..", "results",
+                     "d3rlpy_paper_results", "d4rl.py")
+    )
+    spec = importlib.util.spec_from_file_location(
+        "d3rlpy_paper_d4rl_results", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.RESULTS
+
+
+def _parse_dataset_id(dataset_id: str):
+    """Parse a meta-registry Dataset_ID like 'hopper_medium-replay' into
+    (env_family, tier)."""
+    if "_" not in dataset_id:
+        return None, None
+    env_family, tier = dataset_id.split("_", 1)
+    return env_family, tier
+
+
+def _build_meta_with_paper_target(df_meta: pd.DataFrame, algorithm: str) -> pd.DataFrame:
+    """Return a copy of df_meta with Normalized_Target_Score replaced by the
+    d3rlpy paper's published mean score for `algorithm`, matched per-row via
+    Dataset_ID (env_tier -> env-tier-v0).
+
+    The dataset meta-features (state coverage, action entropy, etc.) describe
+    properties of our own datasets and stay unchanged — only the performance
+    target being explained/predicted is swapped out. Rows whose tier has no
+    counterpart in the paper's D4RL v0 naming (our 'simple'/'expert' tiers
+    vs. the paper's 'random'/'medium-expert') get NaN and are naturally
+    dropped by the existing dropna() calls in each plot function.
+    """
+    if df_meta.empty:
+        return df_meta
+
+    paper_results = _load_paper_results()
+    if algorithm not in paper_results:
+        available = ", ".join(sorted(paper_results.keys()))
+        raise ValueError(
+            f"Unknown --paper-algorithm '{algorithm}'. Available: {available}")
+    algo_scores = paper_results[algorithm]
+
+    def lookup(dataset_id):
+        env_family, tier = _parse_dataset_id(str(dataset_id))
+        if env_family is None:
+            return np.nan
+        scores = algo_scores.get(f"{env_family}-{tier}-v0")
+        return scores["mean"] if scores else np.nan
+
+    df = df_meta.copy()
+    df["Normalized_Target_Score"] = df["Dataset_ID"].apply(lookup)
+    return df
+
+
+def _parse_paper_dataset_key(dataset_key: str):
+    """Parse a d3rlpy paper dataset key like 'halfcheetah-medium-replay-v0'
+    into (env_family, tier), mirroring _parse_env_tier_from_path's output."""
+    parts = dataset_key.split("-")
+    if len(parts) < 3 or not parts[-1].startswith("v"):
+        return None, None
+    env_family = parts[0]
+    tier = "-".join(parts[1:-1])
+    if env_family not in ENV_ORDER:
+        return None, None
+    return env_family, tier
+
+
+def _load_results_from_paper(algorithm: str) -> pd.DataFrame:
+    """Build a DataFrame shaped like _load_all_pipeline_reports()'s output,
+    but populated from published d3rlpy paper benchmark results for a given
+    algorithm, so it can be fed into the same plotting functions.
+
+    Note: the paper only reports an aggregate mean/std per dataset (no
+    per-seed telemetry), so `seed_data` is left empty — plots that rely on
+    seed-level detail (e.g. plot_seed_consistency) will simply find nothing
+    to plot for this data source.
+    """
+    paper_results = _load_paper_results()
+    if algorithm not in paper_results:
+        available = ", ".join(sorted(paper_results.keys()))
+        raise ValueError(
+            f"Unknown --paper-algorithm '{algorithm}'. Available: {available}")
+
+    rows = []
+    for dataset_key, scores in paper_results[algorithm].items():
+        env_family, tier = _parse_paper_dataset_key(dataset_key)
+        if env_family is None or tier is None:
+            continue
+        rows.append({
+            "env_name": dataset_key,
+            "env_family": env_family,
+            "tier": tier,
+            "mean_d4rl": scores["mean"],
+            "std_d4rl": scores["std"],
+            "report_path": f"<d3rlpy_paper_results:{algorithm}>",
+            "seed_data": [],
+        })
+
+    return pd.DataFrame(rows)
+
+
 def _save_figure(fig, filename: str, output_dir: str, dpi: int = 150):
     """Save a figure to output_dir/filename with consistent settings."""
     os.makedirs(output_dir, exist_ok=True)
@@ -273,7 +406,8 @@ def _env_color(env_family: str) -> str:
 
 def _tier_marker(tier: str) -> str:
     """Return marker style for a dataset tier."""
-    mapping = {"simple": "o", "medium": "s", "medium-replay": "^", "expert": "D"}
+    mapping = {"simple": "o", "medium": "s",
+               "medium-replay": "^", "expert": "D"}
     return mapping.get(tier, "o")
 
 
@@ -282,8 +416,13 @@ def _tier_marker(tier: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def plot_performance_overview(df_results: pd.DataFrame, output_dir: str):
-    """Grouped bar chart: D4RL Normalized Score per (Environment × Tier)."""
+def plot_performance_overview(
+    df_results: pd.DataFrame,
+    output_dir: str,
+    algorithm_label: str = "CQL",
+    output_filename: str = "performance_overview.png",
+):
+    """Grouped bar chart: D4RL Normalized Score per (Environment x Tier)."""
     # Filter to rows with valid scores
     df = df_results.dropna(subset=["mean_d4rl"]).copy()
     if df.empty:
@@ -299,52 +438,56 @@ def plot_performance_overview(df_results: pd.DataFrame, output_dir: str):
     )
 
     # Also get std for error bars
-    std_pivot = df.pivot_table(
-        index="env_family",
-        columns="tier",
-        values="std_d4rl",
-        aggfunc="first",
-    )
+    # std_pivot = df.pivot_table(
+    #     index="env_family",
+    #     columns="tier",
+    #     values="std_d4rl",
+    #     aggfunc="first",
+    # )
 
     # Reorder rows and columns
     envs = [e for e in ENV_ORDER if e in pivot.index]
-    tiers = [t for t in TIER_ORDER if t in pivot.columns]
+    # tiers = [t for t in TIER_ORDER if t in pivot.columns]
 
     if not envs:
         print("  [!] No recognised environments in performance data.")
         return
 
     n_envs = len(envs)
-    n_tiers = len(tiers)
+    # n_tiers = len(tiers)
     x = np.arange(n_envs)
-    width = 0.8 / n_tiers
+    # width = 0.8 / n_tiers
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
 
-    for i, tier in enumerate(tiers):
-        values = [pivot.loc[e, tier] if tier in pivot.columns else np.nan for e in envs]
-        errors = [std_pivot.loc[e, tier] if tier in std_pivot.columns else np.nan for e in envs]
-        offset = (i - (n_tiers - 1) / 2) * width
-        bars = ax.bar(
-            x + offset,
-            values,
-            width,
-            label=TIER_LABELS.get(tier, tier),
-            color=sns.color_palette("muted")[i % 10],
-            yerr=errors,
-            capsize=3,
-            error_kw={"linewidth": 1},
-        )
+    # for i, tier in enumerate(tiers):
+    #     values = [pivot.loc[e, tier]
+    #               if tier in pivot.columns else np.nan for e in envs]
+    #     errors = [std_pivot.loc[e, tier]
+    #               if tier in std_pivot.columns else np.nan for e in envs]
+    #     offset = (i - (n_tiers - 1) / 2) * width
+    #     bars = ax.bar(
+    #         x + offset,
+    #         values,
+    #         width,
+    #         label=TIER_LABELS.get(tier, tier),
+    #         color=sns.color_palette("muted")[i % 10],
+    #         yerr=errors,
+    #         capsize=3,
+    #         error_kw={"linewidth": 1},
+    #     )
 
     ax.set_xticks(x)
     ax.set_xticklabels([ENV_LABELS.get(e, e) for e in envs], fontsize=12)
     ax.set_ylabel("D4RL Normalized Score (%)", fontsize=12)
-    ax.set_title("CQL Performance Across Environments and Dataset Tiers", fontsize=14)
-    ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.8, label="Random policy")
+    ax.set_title(
+        f"{algorithm_label} Performance Across Environments and Dataset Tiers", fontsize=14)
+    ax.axhline(y=0, color="gray", linestyle="--",
+               linewidth=0.8, label="Random policy")
     ax.legend(fontsize=10, loc="best")
     ax.grid(axis="y", alpha=0.3)
 
-    _save_figure(fig, "performance_overview.png", output_dir)
+    _save_figure(fig, output_filename, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -352,14 +495,19 @@ def plot_performance_overview(df_results: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def plot_metrics_vs_performance(df_meta: pd.DataFrame, output_dir: str):
-    """2×2 scatter subplot: each meta-feature vs. D4RL score with trend line."""
+def plot_metrics_vs_performance(
+    df_meta: pd.DataFrame,
+    output_dir: str,
+    algorithm_label: str = "CQL",
+    output_filename: str = "metrics_vs_performance.png",
+):
+    """2x2 scatter subplot: each meta-feature vs. D4RL score with trend line."""
     df = df_meta.dropna(subset=META_FEATURES + ["Normalized_Target_Score"]).copy()
     if df.empty:
         print("  [!] No meta-registry data for metrics-vs-performance plot.")
         return
 
-    features = META_FEATURES[:4]  # Use first 4 for 2×2 grid
+    features = META_FEATURES[:4]  # Use first 4 for 2x2 grid
     fig, axes = plt.subplots(2, 2, figsize=(11, 9))
 
     for ax, feat in zip(axes.flat, features):
@@ -395,10 +543,11 @@ def plot_metrics_vs_performance(df_meta: pd.DataFrame, output_dir: str):
     fig.legend(handles, labels, loc="upper center", ncol=len(ENV_ORDER),
                fontsize=10, frameon=True, bbox_to_anchor=(0.5, 1.02))
 
-    fig.suptitle("Dataset Characteristics vs. CQL Performance", fontsize=14, y=1.06)
+    fig.suptitle(
+        f"Dataset Characteristics vs. {algorithm_label} Performance", fontsize=14, y=1.06)
     fig.tight_layout()
 
-    _save_figure(fig, "metrics_vs_performance.png", output_dir)
+    _save_figure(fig, output_filename, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -406,7 +555,12 @@ def plot_metrics_vs_performance(df_meta: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def plot_correlation_heatmap(df_meta: pd.DataFrame, output_dir: str):
+def plot_correlation_heatmap(
+    df_meta: pd.DataFrame,
+    output_dir: str,
+    algorithm_label: str = "CQL",
+    output_filename: str = "correlation_heatmap.png",
+):
     """Annotated correlation matrix of all numeric meta-features + target."""
     cols = META_FEATURES + ["Normalized_Target_Score"]
     df = df_meta[cols].dropna().copy()
@@ -422,7 +576,8 @@ def plot_correlation_heatmap(df_meta: pd.DataFrame, output_dir: str):
         df = df.drop(columns=constant_cols)
 
     # Rename columns for readability
-    rename_map = {**META_FEATURE_LABELS, "Normalized_Target_Score": "D4RL Score"}
+    rename_map = {**META_FEATURE_LABELS,
+                  "Normalized_Target_Score": "D4RL Score"}
     df_renamed = df.rename(columns=rename_map)
 
     corr = df_renamed.corr()
@@ -443,12 +598,13 @@ def plot_correlation_heatmap(df_meta: pd.DataFrame, output_dir: str):
         cbar_kws={"shrink": 0.75, "label": "Pearson Correlation"},
         ax=ax,
     )
-    ax.set_title("Correlation Matrix: Dataset Metrics vs. CQL Performance",
+    ax.set_title(f"Correlation Matrix: Dataset Metrics vs. {algorithm_label} Performance",
                  fontsize=13, pad=15)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=30, ha="right", fontsize=10)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=30,
+                       ha="right", fontsize=10)
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
 
-    _save_figure(fig, "correlation_heatmap.png", output_dir)
+    _save_figure(fig, output_filename, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +612,12 @@ def plot_correlation_heatmap(df_meta: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def plot_feature_importance(df_meta: pd.DataFrame, output_dir: str):
+def plot_feature_importance(
+    df_meta: pd.DataFrame,
+    output_dir: str,
+    algorithm_label: str = "CQL",
+    output_filename: str = "feature_importance.png",
+):
     """Random Forest feature importance as a horizontal bar chart."""
     df = df_meta.dropna(subset=META_FEATURES + ["Normalized_Target_Score"]).copy()
     if df.empty:
@@ -492,7 +653,7 @@ def plot_feature_importance(df_meta: pd.DataFrame, output_dir: str):
     )
     ax.invert_yaxis()
     ax.set_xlabel("Feature Importance", fontsize=12)
-    ax.set_title("Random Forest Feature Importance\nfor Predicting CQL Performance",
+    ax.set_title(f"Random Forest Feature Importance\nfor Predicting {algorithm_label} Performance",
                  fontsize=13)
     ax.grid(axis="x", alpha=0.3)
 
@@ -501,7 +662,7 @@ def plot_feature_importance(df_meta: pd.DataFrame, output_dir: str):
         ax.text(bar.get_width() + 0.005, bar.get_y() + bar.get_height() / 2,
                 f"{val:.3f}", va="center", fontsize=9)
 
-    _save_figure(fig, "feature_importance.png", output_dir)
+    _save_figure(fig, output_filename, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -509,11 +670,14 @@ def plot_feature_importance(df_meta: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def plot_predicted_vs_actual(df_meta: pd.DataFrame, output_dir: str):
+def plot_predicted_vs_actual(
+    df_meta: pd.DataFrame,
+    output_dir: str,
+    algorithm_label: str = "CQL",
+    output_filename: str = "predicted_vs_actual.png",
+):
     """Scatter plot: predicted D4RL score vs. actual, using a GBR trained on
     the meta-registry with leave-one-dataset-out cross-validation."""
-    from sklearn.ensemble import GradientBoostingRegressor
-    from sklearn.preprocessing import StandardScaler
 
     df = df_meta.dropna(subset=META_FEATURES + ["Normalized_Target_Score"]).copy()
     if len(df) < 3:
@@ -568,11 +732,12 @@ def plot_predicted_vs_actual(df_meta: pd.DataFrame, output_dir: str):
         min(np.nanmin(predictions), np.nanmin(y)),
         max(np.nanmax(predictions), np.nanmax(y)),
     ]
-    ax.plot(lims, lims, "k--", linewidth=1, alpha=0.6, label="Perfect prediction", zorder=1)
+    ax.plot(lims, lims, "k--", linewidth=1, alpha=0.6,
+            label="Perfect prediction", zorder=1)
 
     ax.set_xlabel("Predicted D4RL Score (%)", fontsize=12)
     ax.set_ylabel("Actual D4RL Score (%)", fontsize=12)
-    ax.set_title("Meta-Predictor: Predicted vs. Actual CQL Performance\n(Leave-One-Out CV)",
+    ax.set_title(f"Meta-Predictor: Predicted vs. Actual {algorithm_label} Performance\n(Leave-One-Out CV)",
                  fontsize=13)
     ax.legend(fontsize=10, loc="upper left")
     ax.grid(alpha=0.3)
@@ -585,7 +750,7 @@ def plot_predicted_vs_actual(df_meta: pd.DataFrame, output_dir: str):
             ha="right", va="bottom", fontsize=11,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
 
-    _save_figure(fig, "predicted_vs_actual.png", output_dir)
+    _save_figure(fig, output_filename, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +758,11 @@ def plot_predicted_vs_actual(df_meta: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def plot_seed_consistency(df_results: pd.DataFrame, output_dir: str):
+def plot_seed_consistency(
+    df_results: pd.DataFrame,
+    output_dir: str,
+    output_filename: str = "seed_consistency.png",
+):
     """Boxplot showing the distribution of seed-level D4RL scores per dataset."""
     # Build seed-level DataFrame
     rows = []
@@ -635,8 +804,9 @@ def plot_seed_consistency(df_results: pd.DataFrame, output_dir: str):
             palette[ds] = "#999999"
 
     # Use hue instead of palette to avoid deprecation warning
-    df_seeds["env_for_hue"] = df_seeds["env_family"].map(lambda e: ENV_LABELS.get(e, e))
-    
+    df_seeds["env_for_hue"] = df_seeds["env_family"].map(
+        lambda e: ENV_LABELS.get(e, e))
+
     sns.boxplot(
         data=df_seeds,
         x="dataset",
@@ -665,10 +835,11 @@ def plot_seed_consistency(df_results: pd.DataFrame, output_dir: str):
     ax.set_ylabel("D4RL Normalized Score (%)", fontsize=12)
     ax.set_title("Seed-Level Consistency Across Datasets", fontsize=14)
     ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.8)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=35, ha="right", fontsize=9)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=35,
+                       ha="right", fontsize=9)
     ax.grid(axis="y", alpha=0.3)
 
-    _save_figure(fig, "seed_consistency.png", output_dir)
+    _save_figure(fig, output_filename, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -699,7 +870,7 @@ def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
         fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={"polar": True})
 
         for label, row in [("Expert", expert.iloc[0]), ("Simple", simple.iloc[0])]:
-            values = [row[m] for m in RADAR_METRICS]
+            # values = [row[m] for m in RADAR_METRICS]
             # Normalise to [0, 1] using min-max across all profiles for this metric
             values_norm = []
             for m in RADAR_METRICS:
@@ -713,7 +884,8 @@ def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
 
             color = "#D55E00" if label == "Expert" else "#0072B2"
             ax.fill(angles, values_norm, alpha=0.1, color=color)
-            ax.plot(angles, values_norm, "o-", linewidth=2, label=label, color=color)
+            ax.plot(angles, values_norm, "o-",
+                    linewidth=2, label=label, color=color)
 
         ax.set_xticks(angles[:-1])
         ax.set_xticklabels(RADAR_LABELS, fontsize=9)
@@ -749,10 +921,10 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
 
     # Tier-specific colours (sequential palette: simple→medium→expert)
     tier_colors = {
-        "simple":        "#fee5d9",  # light orange
-        "medium":        "#fcae91",  # medium orange
+        "simple": "#fee5d9",  # light orange
+        "medium": "#fcae91",  # medium orange
         "medium-replay": "#fb6a4a",  # darker orange
-        "expert":        "#de2d26",  # red
+        "expert": "#de2d26",  # red
     }
     tier_order = ["simple", "medium", "medium-replay", "expert"]
 
@@ -769,7 +941,7 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
                 continue
 
             for _, row in tier_rows.iterrows():
-                values = [row[m] for m in RADAR_METRICS]
+                # values = [row[m] for m in RADAR_METRICS]
                 # Normalise using global min-max (across ALL datasets)
                 values_norm = []
                 for m in RADAR_METRICS:
@@ -810,7 +982,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate visualisations for offline RL experiment results.")
     parser.add_argument(
-        "--results-dir", type=str, default="../results/cql_runs",
+        "--results-dir", type=str, default="../policy_results/self_trained_cql_results",
         help="Path to the cql_runs results directory.")
     parser.add_argument(
         "--profiles-dir", type=str, default="../dataset_profiles",
@@ -818,12 +990,19 @@ def main():
     parser.add_argument(
         "--output-dir", type=str, default="../results/figures",
         help="Directory to save generated figures.")
+    parser.add_argument(
+        "--paper-algorithm", type=str, default=None,
+        help="If set, plot performance/seed-consistency figures using published "
+             "d3rlpy paper D4RL results for this algorithm (see "
+             "src/results/d3rlpy_paper_results/d4rl.py for available names, e.g. "
+             "CQL, IQL, TD3+BC) instead of our own pipeline results.")
     args = parser.parse_args()
 
     # Resolve paths relative to this script's location
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.normpath(os.path.join(script_dir, args.results_dir))
-    profiles_dir = os.path.normpath(os.path.join(script_dir, args.profiles_dir))
+    profiles_dir = os.path.normpath(
+        os.path.join(script_dir, args.profiles_dir))
     output_dir = os.path.normpath(os.path.join(script_dir, args.output_dir))
 
     print("=" * 60)
@@ -836,7 +1015,12 @@ def main():
 
     # ---- Load data ----
     print("\n[1/3] Loading pipeline results...")
-    df_results = _load_all_pipeline_reports(results_dir)
+    if args.paper_algorithm:
+        print(
+            f"       Using d3rlpy paper results for algorithm: {args.paper_algorithm}")
+        df_results = _load_results_from_paper(args.paper_algorithm)
+    else:
+        df_results = _load_all_pipeline_reports(results_dir)
     print(f"       Found {len(df_results)} dataset report(s).")
 
     print("\n[2/3] Loading dataset profiles...")
@@ -847,28 +1031,67 @@ def main():
     df_meta = _load_meta_registry(profiles_dir)
     print(f"       Found {len(df_meta)} row(s).")
 
+    # When plotting against paper results, swap in the paper algorithm's
+    # scores as the prediction target while keeping our own dataset
+    # meta-features. Rows whose tier has no counterpart in the paper's D4RL
+    # naming (our 'simple'/'expert' vs. the paper's 'random'/'medium-expert')
+    # end up with no target and are dropped by each plot function as usual.
+    algo_label = "CQL"
+    filename_suffix = ""
+    if args.paper_algorithm:
+        algo_label = args.paper_algorithm
+        filename_suffix = "_" + args.paper_algorithm.lower().replace("+", "plus")
+        df_meta = _build_meta_with_paper_target(df_meta, args.paper_algorithm)
+        n_matched = df_meta["Normalized_Target_Score"].notna(
+        ).sum() if not df_meta.empty else 0
+        print(f"       Matched {n_matched}/{len(df_meta)} row(s) to '{algo_label}' paper scores "
+              f"(tier-name mismatches, e.g. simple/expert vs. random/medium-expert, are dropped).")
+
     # ---- Generate plots ----
     print("\n" + "=" * 60)
     print("  Generating Figures")
     print("=" * 60)
 
     print("\n  • Performance Overview (grouped bar chart)...")
-    plot_performance_overview(df_results, output_dir)
+    plot_performance_overview(
+        df_results, output_dir,
+        algorithm_label=algo_label,
+        output_filename=f"performance_overview{filename_suffix}.png",
+    )
 
     print("\n  • Metrics vs. Performance (scatter + trend)...")
-    plot_metrics_vs_performance(df_meta, output_dir)
+    plot_metrics_vs_performance(
+        df_meta, output_dir,
+        algorithm_label=algo_label,
+        output_filename=f"metrics_vs_performance{filename_suffix}.png",
+    )
 
     print("\n  • Correlation Heatmap...")
-    plot_correlation_heatmap(df_meta, output_dir)
+    plot_correlation_heatmap(
+        df_meta, output_dir,
+        algorithm_label=algo_label,
+        output_filename=f"correlation_heatmap{filename_suffix}.png",
+    )
 
     print("\n  • Feature Importance (Random Forest)...")
-    plot_feature_importance(df_meta, output_dir)
+    plot_feature_importance(
+        df_meta, output_dir,
+        algorithm_label=algo_label,
+        output_filename=f"feature_importance{filename_suffix}.png",
+    )
 
     print("\n  • Predicted vs. Actual (LOO-CV)...")
-    plot_predicted_vs_actual(df_meta, output_dir)
+    plot_predicted_vs_actual(
+        df_meta, output_dir,
+        algorithm_label=algo_label,
+        output_filename=f"predicted_vs_actual{filename_suffix}.png",
+    )
 
     print("\n  • Seed Consistency (boxplot)...")
-    plot_seed_consistency(df_results, output_dir)
+    plot_seed_consistency(
+        df_results, output_dir,
+        output_filename=f"seed_consistency{filename_suffix}.png",
+    )
 
     print("\n  • Radar: Expert vs. Simple per Environment...")
     plot_radar_comparison(df_profiles, output_dir)

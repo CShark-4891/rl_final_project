@@ -6,6 +6,7 @@ import sys
 import yaml
 import json
 import numpy as np
+from configs import default_paths
 import pipeline.dataset_utils as dataset_utils
 
 
@@ -161,8 +162,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Master orchestrator pipeline for multi-seeded offline RL runs")
     parser.add_argument(
-        "--config", type=str, default="../configs/cql_default.yaml", help="Path to configuration yaml")
-    parser.add_argument("--output_dir", type=str, default="../results/cql_runs",
+        "--config", type=str, default=default_paths.DEFAULT_CONFIG_PATH, help="Path to configuration yaml")
+    parser.add_argument("--output_dir", type=str, default=default_paths.PIPELINE_OUTPUT_DIR,
                         help="Root directory tree destination")
     parser.add_argument("--eval_episodes", type=int, default=10,
                         help="Evaluation episode quantity per seed sweep")

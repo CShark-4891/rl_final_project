@@ -6,10 +6,22 @@ import numpy as np
 
 # D4RL reference baselines for normalizing raw scores
 D4RL_REF_SCORES = {
-    "halfcheetah": {"random": -280.05, "expert": 12135.0},
-    "hopper":      {"random": -20.0,    "expert": 3234.3},
-    "walker2d":    {"random": 1.62,     "expert": 4592.3},
-    "ant":         {"random": -325.6,   "expert": 3818.5},
+    "halfcheetah": {
+        "random": -280.05,
+        "expert": 12135.0
+    },
+    "hopper": {
+        "random": -20.0,
+        "expert": 3234.3
+    },
+    "walker2d": {
+        "random": 1.62,
+        "expert": 4592.3
+    },
+    "ant": {
+        "random": -325.6,
+        "expert": 3818.5
+    },
 }
 
 
@@ -95,7 +107,8 @@ def main():
                         ]
                         if raw_scores:
                             mean_raw = float(np.mean(raw_scores))
-                            normalized_target = _normalize_raw_score(env_family, mean_raw)
+                            normalized_target = _normalize_raw_score(
+                                env_family, mean_raw)
 
                 # Fallback: use stored mean_d4rl_score if re-normalization failed
                 if normalized_target is None:
