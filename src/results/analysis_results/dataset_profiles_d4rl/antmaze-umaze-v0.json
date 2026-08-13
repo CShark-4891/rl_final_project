@@ -1,0 +1,26 @@
+{
+    "Dataset": "antmaze-umaze-v0",
+    "Size": {
+        "Transitions": 999626,
+        "Episodes": 10153,
+        "Average Episode Length": 98.45621983650153
+    },
+    "Coverage": {
+        "State Spread": 1.155067801475525,
+        "State Cluster Coverage": 1.0,
+        "State Entropy": 0.9894327502978068,
+        "Action Variance": 0.608383059501648,
+        "Action Entropy": 3.1843865010543304
+    },
+    "Quality": {
+        "Mean Return": 0.8595489263534546,
+        "Std Return": 0.3474544584751129,
+        "Min Return": 0.0,
+        "Max Return": 1.0,
+        "Median Return": 1.0,
+        "Reward Sparsity": 0.9912697348808455
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.9319249402096162
+    }
+}

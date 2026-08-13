@@ -1,0 +1,26 @@
+{
+    "Dataset": "antmaze-medium-play-v0",
+    "Size": {
+        "Transitions": 999260,
+        "Episodes": 10694,
+        "Average Episode Length": 93.4411819711988
+    },
+    "Coverage": {
+        "State Spread": 1.3490591049194336,
+        "State Cluster Coverage": 1.0,
+        "State Entropy": 0.9828292918259686,
+        "Action Variance": 0.5950262546539307,
+        "Action Entropy": 3.178445203603991
+    },
+    "Quality": {
+        "Mean Return": 0.9151861071586609,
+        "Std Return": 0.27860456705093384,
+        "Min Return": 0.0,
+        "Max Return": 1.0,
+        "Median Return": 1.0,
+        "Reward Sparsity": 0.99020575225667
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.8863623666719521
+    }
+}

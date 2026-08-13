@@ -1,0 +1,26 @@
+{
+    "Dataset": "halfcheetah-medium-expert-v0",
+    "Size": {
+        "Transitions": 1999996,
+        "Episodes": 2003,
+        "Average Episode Length": 998.5002496255617
+    },
+    "Coverage": {
+        "State Spread": 4.465167999267578,
+        "State Cluster Coverage": 1.0,
+        "State Entropy": 0.9254064824051632,
+        "Action Variance": 0.6686576008796692,
+        "Action Entropy": 3.0619401761541476
+    },
+    "Quality": {
+        "Mean Return": 8062.76513671875,
+        "Std Return": 4201.41064453125,
+        "Min Return": 308.9545593261719,
+        "Max Return": 12898.779296875,
+        "Median Return": 4315.767578125,
+        "Reward Sparsity": 0.0
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.9140285987084386
+    }
+}

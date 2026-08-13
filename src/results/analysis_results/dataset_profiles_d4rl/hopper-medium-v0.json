@@ -1,0 +1,26 @@
+{
+    "Dataset": "hopper-medium-v0",
+    "Size": {
+        "Transitions": 1000000,
+        "Episodes": 3064,
+        "Average Episode Length": 326.37075718015666
+    },
+    "Coverage": {
+        "State Spread": 1.3980635404586792,
+        "State Cluster Coverage": 1.0,
+        "State Entropy": 0.9771979568944631,
+        "Action Variance": 0.35797908902168274,
+        "Action Entropy": 3.782144906088387
+    },
+    "Quality": {
+        "Mean Return": 1021.7492065429688,
+        "Std Return": 313.51580810546875,
+        "Min Return": 26.500652313232422,
+        "Max Return": 3254.32080078125,
+        "Median Return": 949.8153076171875,
+        "Reward Sparsity": 0.0
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.949602858331869
+    }
+}
