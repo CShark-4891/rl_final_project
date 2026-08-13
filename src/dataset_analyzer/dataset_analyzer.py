@@ -15,7 +15,7 @@ PRINT_VERBOSE = True
 def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
     os.makedirs(output_dir, exist_ok=True)
 
-    # Clean the slash characters from Minari path strings for valid file systems
+    # Clean the slash characters from d4rl path strings for valid file systems
     name = profile["Dataset"].replace("/", "_")
     path = os.path.join(output_dir, f"{name}.json")
 
@@ -94,10 +94,10 @@ def normalized_cluster_entropy(labels, n_clusters):
     return float(entropy(probs) / np.log(n_clusters))
 
 
-def load_minari_dataset(env_name):
+def load_d4rl_dataset(env_name):
 
-    # Natively load Minari datasets via d3rlpy ecosystem
-    dataset, _ = d3rlpy.datasets.get_minari(env_name)
+    # Natively load d4rl datasets via d3rlpy ecosystem
+    dataset, _ = d3rlpy.datasets.get_d4rl(env_name)
 
     return [
         {
@@ -112,7 +112,7 @@ def load_minari_dataset(env_name):
 def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
-    episodes = load_minari_dataset(env_name)
+    episodes = load_d4rl_dataset(env_name)
 
     states = np.concatenate(
         [episode["observations"] for episode in episodes]
@@ -269,36 +269,30 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
 
 
 if __name__ == "__main__":
-    # Updated target targets matching standard modern Minari profiles
-    datasets = [
-        # --- 1. Walker2d Suite ---
-        "mujoco/walker2d/simple-v0",
-        "mujoco/walker2d/medium-v0",
-        "mujoco/walker2d/expert-v0",
-
-        # --- 2. HalfCheetah Suite ---
-        "mujoco/halfcheetah/simple-v0",
-        "mujoco/halfcheetah/medium-v0",
-        "mujoco/halfcheetah/expert-v0",
-
-        # --- 3. Hopper Suite ---
-        "mujoco/hopper/simple-v0",
-        "mujoco/hopper/medium-v0",
-        "mujoco/hopper/expert-v0",
-        # "mujoco/hopper/medium-replay-v0",
-
-        # --- 4. Ant Suite ---
-        "mujoco/ant/simple-v0",
-        # "mujoco/ant/medium-v0",
-        # "mujoco/ant/expert-v0",
-
-        # # --- 5. Humanoid Suite ---
-        # "mujoco/humanoid/simple-v0",
-        # "mujoco/humanoid/medium-v0",
-        # "mujoco/humanoid/expert-v0"
+    # Updated target targets matching standard modern d4rl profiles
+    d3rlpy_datasets = [
+        # Antmaze
+        'antmaze-large-play-v0',
+        'antmaze-medium-play-v0',
+        'antmaze-umaze-v0',
+        # Halfcheetah
+        'halfcheetah-medium-expert-v0',
+        'halfcheetah-medium-replay-v0',
+        'halfcheetah-medium-v0',
+        'halfcheetah-random-v0',
+        # Hopper
+        'hopper-medium-expert-v0',
+        'hopper-medium-replay-v0',
+        'hopper-medium-v0',
+        'hopper-random-v0',
+        # Walker2d
+        'walker2d-medium-expert-v0',
+        'walker2d-medium-replay-v0',
+        'walker2d-medium-v0',
+        'walker2d-random-v0',
     ]
 
-    for dataset in datasets:
+    for dataset in d3rlpy_datasets:
         print(f"[+] Analyzing {dataset}")
         profile = analyze_dataset(dataset)
         # break

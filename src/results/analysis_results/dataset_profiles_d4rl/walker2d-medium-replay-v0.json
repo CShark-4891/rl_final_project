@@ -1,0 +1,26 @@
+{
+    "Dataset": "walker2d-medium-replay-v0",
+    "Size": {
+        "Transitions": 100930,
+        "Episodes": 501,
+        "Average Episode Length": 201.4570858283433
+    },
+    "Coverage": {
+        "State Spread": 2.245786666870117,
+        "State Cluster Coverage": 1.0,
+        "State Entropy": 0.9588318638643496,
+        "Action Variance": 0.37416112422943115,
+        "Action Entropy": 3.69767582300391
+    },
+    "Quality": {
+        "Mean Return": 358.44140625,
+        "Std Return": 290.5961608886719,
+        "Min Return": -43.812828063964844,
+        "Max Return": 1956.506103515625,
+        "Median Return": 332.5120849609375,
+        "Reward Sparsity": 0.0
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.9362955753796496
+    }
+}
