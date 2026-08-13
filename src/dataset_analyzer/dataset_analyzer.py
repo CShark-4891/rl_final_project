@@ -27,12 +27,13 @@ def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
 
 def calculate_entropy(values, bins=50, value_range=None):
     histogram, _ = np.histogram(
-        values, bins=bins, range=value_range, density=True)
-    histogram = histogram[histogram > 0]
+        values, bins=bins, range=value_range, density=False)
+    histogram = histogram / histogram.sum()  # Normalize to probabilities
 
-    if len(histogram) == 0:
+    if len(histogram) == 0 or histogram.sum() == 0:
         return 0.0
 
+    histogram = histogram[histogram > 0]
     return float(entropy(histogram))
 
 
@@ -206,7 +207,9 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
         "Min Return": float(np.min(returns)),
         "Max Return": float(np.max(returns)),
         "Median Return": float(np.median(returns)),
-        "Reward Sparsity": float(np.mean(rewards == 0))
+        # Reward sparsity: fraction of steps with near-zero reward
+        # Use a threshold since continuous Mujoco rewards are rarely exactly 0
+        "Reward Sparsity": float(np.mean(np.abs(rewards) < 0.1))
     }
 
     # Metric 3: Trajectory diversity
