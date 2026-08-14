@@ -70,6 +70,28 @@ TIER_LABELS = {
     "medium-expert": "Medium-Expert",
 }
 
+# Canonical difficulty-rank groups used to line up d4rl's tier naming
+# (random/medium/medium-replay/medium-expert) against ours
+# (simple/medium/expert) for cross-dataset-source comparisons: simple and
+# random are both the "weakest" tier, expert and medium-expert are both the
+# "strongest" tier, medium matches exactly, and medium-replay has no Minari
+# counterpart at all (rows for it only ever show the d4rl bar).
+TIER_GROUP_ORDER = ["weakest", "medium", "medium-replay", "strongest"]
+TIER_GROUP_LABELS = {
+    "weakest": "Simple / Random",
+    "medium": "Medium",
+    "medium-replay": "Medium-Replay",
+    "strongest": "Expert / Medium-Expert",
+}
+TIER_TO_GROUP = {
+    "simple": "weakest",
+    "random": "weakest",
+    "medium": "medium",
+    "medium-replay": "medium-replay",
+    "expert": "strongest",
+    "medium-expert": "strongest",
+}
+
 # Maps a policy-result source (top-level key under POLICY_RESULTS_DIR, e.g.
 # "self_trained") to the dataset-profile source (top-level key under
 # DATASET_PROFILES_DIR, e.g. "minari") whose datasets it was trained/
@@ -113,6 +135,18 @@ RADAR_LABELS = [
     "Action Entropy",
     "Trajectory\nDiversity",
 ]
+
+# Absolute-scale dataset-size/return features, kept in a separate bar panel
+# from RADAR_METRICS in the dataset-source comparison plot: their magnitudes
+# (tens to thousands) would dwarf the 0-4-range entropy/spread/diversity
+# features if plotted on the same axis. Mean_Return's companion Std_Return
+# is drawn as that bar's error bar rather than as its own x-axis category.
+META_COUNT_FEATURES = ["Mean_Return", "Episodes", "Avg_Episode_Length"]
+META_COUNT_FEATURE_LABELS = {
+    "Mean_Return": "Mean Return",
+    "Episodes": "Episodes",
+    "Avg_Episode_Length": "Avg. Episode Length",
+}
 
 # D4RL reference baselines for normalizing raw scores (0% = random, 100% = expert).
 # These are used to re-normalize raw scores from pipeline results, ensuring
@@ -273,12 +307,11 @@ def _normalize_tier(tier_str: str) -> str:
     return tier
 
 
-def _profiles_dict_to_df(source_profiles: dict) -> pd.DataFrame:
+def _flatten_profile_rows(source_profiles: dict) -> list:
     """Flatten one dataset_profile_data[<dataset source>] entry (env_family ->
-    tier -> feature dict, as built by _load_all_dataset_profiles) into the
-    flat per-(env, tier) row DataFrame the profile-driven plot functions
-    expect."""
-    columns = ["env_family", "tier", "Dataset_ID"] + META_FEATURES
+    tier -> feature dict, as built by _load_all_dataset_profiles) into a flat
+    list of per-(env, tier) row dicts. Shared base for _profiles_dict_to_df()
+    and _all_profiles_dict_to_df()."""
     rows = []
     for env_family, tiers in source_profiles.items():
         for raw_tier, features in tiers.items():
@@ -286,6 +319,31 @@ def _profiles_dict_to_df(source_profiles: dict) -> pd.DataFrame:
             row = dict(features)
             row["tier"] = tier
             row["Dataset_ID"] = f"{env_family}_{tier}"
+            rows.append(row)
+    return rows
+
+
+def _profiles_dict_to_df(source_profiles: dict) -> pd.DataFrame:
+    """Flatten one dataset_profile_data[<dataset source>] entry into the flat
+    per-(env, tier) row DataFrame the profile-driven plot functions expect."""
+    columns = ["env_family", "tier", "Dataset_ID"] + META_FEATURES
+    rows = _flatten_profile_rows(source_profiles)
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(rows)
+
+
+def _all_profiles_dict_to_df(dataset_profile_data: dict) -> pd.DataFrame:
+    """Flatten the full dataset_profile_data dict (dataset_source ->
+    env_family -> tier -> feature dict) into one combined per-(source, env,
+    tier) row DataFrame spanning every dataset source, for cross-source
+    comparison plots."""
+    columns = ["source", "env_family", "tier", "Dataset_ID"] + META_FEATURES
+    rows = []
+    for source, profiles in dataset_profile_data.items():
+        for row in _flatten_profile_rows(profiles):
+            row = dict(row)
+            row["source"] = source
             rows.append(row)
     if not rows:
         return pd.DataFrame(columns=columns)
@@ -363,6 +421,13 @@ def _build_meta_df(df_profiles: pd.DataFrame, df_results: pd.DataFrame) -> pd.Da
 def _slugify_algorithm(algorithm: str) -> str:
     """Turn an algorithm name like 'TD3+BC' into a directory-safe slug."""
     return algorithm.lower().replace("+", "plus").replace(" ", "_")
+
+
+def _wrap_label(label: str) -> str:
+    """Break a tick label into one line per word, so a rotated multi-word
+    label (e.g. 'State Coverage Entropy') stays compact instead of one long
+    diagonal string."""
+    return label.replace(" ", "\n")
 
 
 def _save_figure(fig, filename: str, output_dir: str, dpi: int = 150):
@@ -1035,6 +1100,122 @@ def plot_cross_algorithm_tier_comparison(
 
 
 # ---------------------------------------------------------------------------
+# Plot 10: Dataset Source Comparison — one figure per environment, one row
+# per difficulty-rank tier group, each row a grouped bar chart of dataset
+# meta-features comparing every dataset source (e.g. d4rl vs minari)
+# ---------------------------------------------------------------------------
+
+
+def _draw_grouped_source_bars(
+    ax, group_df: pd.DataFrame, sources: list, source_colors: dict,
+    features: list, x: np.ndarray, width: int, n_sources: int,
+    error_feature: str = None, error_col: str = None,
+):
+    """Draw one panel of grouped bars: one bar per (source, feature), with
+    an optional error bar on a single named feature (e.g. Mean_Return's
+    error bar sourced from its companion Std_Return column)."""
+    for i, source in enumerate(sources):
+        source_row = group_df[group_df["source"] == source]
+        if source_row.empty:
+            continue
+        row = source_row.iloc[0]
+        values = [row.get(f, np.nan) for f in features]
+        errors = None
+        if error_feature is not None and error_col is not None:
+            errors = [row.get(error_col, np.nan) if f ==
+                     error_feature else 0 for f in features]
+        offset = (i - (n_sources - 1) / 2) * width
+        ax.bar(x + offset, values, width, yerr=errors, capsize=3,
+              label=source, color=source_colors[source], error_kw={"linewidth": 1})
+
+
+def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
+    """For each environment, draw one figure with one row per
+    difficulty-rank tier group (TIER_GROUP_ORDER). Each row has two grouped
+    bar-chart panels, one bar per dataset source per feature (e.g. d4rl vs
+    minari): the left panel covers the comparable-scale profile-shape
+    features (RADAR_METRICS), the right panel covers the absolute-scale
+    dataset size/return features (META_COUNT_FEATURES, with Mean_Return's
+    error bar drawn from Std_Return) — kept apart because their magnitudes
+    would otherwise dwarf the 0-4-range profile-shape features on a shared
+    axis. Every row gets its own x-tick labels, word-wrapped at each space
+    word-wrapped at each space (not rotated) so multi-word feature names
+    stay compact and legible as plain horizontal text."""
+    df = df_profiles.dropna(subset=RADAR_METRICS).copy()
+    if df.empty:
+        print("  [!] No profile data for dataset-source comparison.")
+        return
+    df["tier_group"] = df["tier"].map(TIER_TO_GROUP)
+    df = df.dropna(subset=["tier_group"])
+
+    sources = sorted(df["source"].unique())
+    source_colors = dict(
+        zip(sources, sns.color_palette("muted", n_colors=len(sources))))
+    shape_labels = [_wrap_label(META_FEATURE_LABELS.get(f, f))
+                    for f in RADAR_METRICS]
+    count_labels = [_wrap_label(META_COUNT_FEATURE_LABELS.get(f, f))
+                    for f in META_COUNT_FEATURES]
+
+    n_sources = len(sources)
+    width = 0.8 / n_sources
+    x_shape = np.arange(len(RADAR_METRICS))
+    x_count = np.arange(len(META_COUNT_FEATURES))
+
+    for env in ENV_ORDER:
+        env_df = df[df["env_family"] == env]
+        if env_df.empty:
+            continue
+
+        groups = [g for g in TIER_GROUP_ORDER if g in env_df["tier_group"].unique()]
+        if not groups:
+            continue
+
+        fig, axes = plt.subplots(
+            len(groups), 2,
+            figsize=(max(11.0, 1.6 * len(RADAR_METRICS) +
+                     1.6 * len(META_COUNT_FEATURES)), 3.0 * len(groups)),
+            squeeze=False,
+        )
+
+        for row_idx, group in enumerate(groups):
+            group_df = env_df[env_df["tier_group"] == group]
+            ax_shape, ax_count = axes[row_idx, 0], axes[row_idx, 1]
+
+            _draw_grouped_source_bars(
+                ax_shape, group_df, sources, source_colors,
+                RADAR_METRICS, x_shape, width, n_sources)
+            _draw_grouped_source_bars(
+                ax_count, group_df, sources, source_colors,
+                META_COUNT_FEATURES, x_count, width, n_sources,
+                error_feature="Mean_Return", error_col="Std_Return")
+
+            for ax, x, labels in (
+                (ax_shape, x_shape, shape_labels),
+                (ax_count, x_count, count_labels),
+            ):
+                ax.set_title(TIER_GROUP_LABELS.get(group, group),
+                            fontsize=11, loc="left")
+                ax.grid(axis="y", alpha=0.3)
+                ax.set_xticks(x)
+                ax.set_xticklabels(
+                    labels, rotation=0, ha="center", fontsize=9)
+
+        # Built directly from source_colors (rather than pulled off one
+        # subplot's handles) so every source appears even if a row happens
+        # to be missing one of them (e.g. a d4rl-only "medium-replay" row).
+        legend_handles = [plt.Rectangle((0, 0), 1, 1, color=source_colors[s])
+                          for s in sources]
+        fig.legend(legend_handles, sources, loc="upper right", fontsize=10)
+
+        fig.suptitle(
+            f"{ENV_LABELS.get(env, env)}: Dataset Source Comparison by Tier",
+            fontsize=14)
+        fig.tight_layout()
+
+        _save_figure(fig, f"{env}_source_comparison.png", output_dir)
+
+
+# ---------------------------------------------------------------------------
 # Plot orchestration — selection (which source) stays separate from
 # rendering (the plot_* functions above, which never branch on source).
 # ---------------------------------------------------------------------------
@@ -1095,6 +1276,14 @@ def generate_cross_algorithm_figures(df_all_scores: pd.DataFrame, output_dir: st
     print("\n  • Cross-Algorithm Tier Comparison (grouped bars per tier)...")
     plot_cross_algorithm_tier_comparison(
         df_all_scores, output_dir, source_label=source_label)
+
+
+def generate_dataset_source_comparison_figures(df_all_profiles: pd.DataFrame, output_dir: str):
+    """Generate figures that compare every dataset source (e.g. d4rl vs
+    minari) against each other, saved into output_dir (already namespaced by
+    the caller as .../dataset_source_comparison/)."""
+    print("\n  • Dataset Source Comparison (grouped bars per tier)...")
+    plot_dataset_source_comparison(df_all_profiles, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -1180,6 +1369,15 @@ def main():
             os.path.join(output_dir, "cross_algorithm", result_source),
             source_label=result_source,
         )
+
+    # the structure of the dataset-source comparison plots is output_dir/dataset_source_comparison/
+    # these only need dataset profiles (no policy scores), compared across
+    # every dataset source at once (e.g. d4rl vs minari)
+    df_all_profiles = _all_profiles_dict_to_df(dataset_profile_data)
+    if not df_all_profiles.dropna(subset=RADAR_METRICS).empty:
+        print("\n--- Dataset source comparison ---")
+        generate_dataset_source_comparison_figures(
+            df_all_profiles, os.path.join(output_dir, "dataset_source_comparison"))
 
     print("\n[✓] Done.")
 
