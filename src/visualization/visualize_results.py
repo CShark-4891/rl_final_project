@@ -292,11 +292,36 @@ def _profiles_dict_to_df(source_profiles: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _all_scores_dict_to_df(source_scores: dict) -> pd.DataFrame:
+    """Flatten one policy_score_data[<result source>] entry (algorithm ->
+    env_family -> tier_key -> {mean, std}, as built by
+    _load_all_policy_reports) into a flat per-(algorithm, env, tier) row
+    DataFrame spanning every algorithm in that result source. Used directly
+    by the cross-algorithm comparison plots, and as the shared base that
+    _scores_dict_to_df() filters down to a single algorithm."""
+    columns = ["algorithm", "env_family", "tier",
+               "Dataset_ID", "mean_d4rl", "std_d4rl"]
+    rows = []
+    for algorithm, envs in source_scores.items():
+        for env_family, tiers in envs.items():
+            for tier_key, scores in tiers.items():
+                tier = _normalize_tier(tier_key)
+                rows.append({
+                    "algorithm": algorithm,
+                    "env_family": env_family,
+                    "tier": tier,
+                    "Dataset_ID": f"{env_family}_{tier}",
+                    "mean_d4rl": scores.get("mean"),
+                    "std_d4rl": scores.get("std"),
+                })
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(rows)
+
+
 def _scores_dict_to_df(source_scores: dict, algorithm: str) -> pd.DataFrame:
-    """Flatten one policy_score_data[<result source>][<algorithm>] entry
-    (env_family -> tier_key -> {mean, std}, as built by
-    _load_all_policy_reports) into the flat per-(env, tier) row DataFrame the
-    performance-driven plot functions expect.
+    """Filter _all_scores_dict_to_df() down to one algorithm, in the flat
+    per-(env, tier) row shape the performance-driven plot functions expect.
 
     The combined score files only carry the mean/std aggregate per dataset
     (no per-seed telemetry), so `seed_data` is always empty here — plots that
@@ -305,21 +330,13 @@ def _scores_dict_to_df(source_scores: dict, algorithm: str) -> pd.DataFrame:
     """
     columns = ["env_family", "tier", "Dataset_ID",
                "mean_d4rl", "std_d4rl", "seed_data"]
-    rows = []
-    for env_family, tiers in source_scores.get(algorithm, {}).items():
-        for tier_key, scores in tiers.items():
-            tier = _normalize_tier(tier_key)
-            rows.append({
-                "env_family": env_family,
-                "tier": tier,
-                "Dataset_ID": f"{env_family}_{tier}",
-                "mean_d4rl": scores.get("mean"),
-                "std_d4rl": scores.get("std"),
-                "seed_data": [],
-            })
-    if not rows:
+    df = _all_scores_dict_to_df(source_scores)
+    df = df[df["algorithm"] == algorithm].drop(columns=["algorithm"])
+    if df.empty:
         return pd.DataFrame(columns=columns)
-    return pd.DataFrame(rows)
+    df = df.reset_index(drop=True)
+    df["seed_data"] = [[] for _ in range(len(df))]
+    return df
 
 
 def _build_meta_df(df_profiles: pd.DataFrame, df_results: pd.DataFrame) -> pd.DataFrame:
@@ -940,6 +957,84 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
+# Plot 9: Cross-Algorithm Tier Comparison — one figure per environment, one
+# row (subplot) per dataset tier, each row a grouped bar chart of every
+# algorithm's score plus a "Mean" bar
+# ---------------------------------------------------------------------------
+
+
+def plot_cross_algorithm_tier_comparison(
+    df_scores: pd.DataFrame,
+    output_dir: str,
+    source_label: str,
+):
+    """For each environment, draw one figure with one row per dataset tier.
+    Each row is a bar chart of every algorithm's D4RL score for that (env,
+    tier), plus one extra "Mean" bar averaging across algorithms. Individual
+    algorithm bars use their own seed std as the error bar; the Mean bar
+    uses the std across algorithm means."""
+    df = df_scores.dropna(subset=["mean_d4rl"]).copy()
+    if df.empty:
+        print("  [!] No valid performance data for cross-algorithm comparison.")
+        return
+
+    algorithms = sorted(df["algorithm"].unique())
+    algo_colors = dict(
+        zip(algorithms, sns.color_palette("muted", n_colors=len(algorithms))))
+    mean_color = "#4d4d4d"
+
+    for env in ENV_ORDER:
+        env_df = df[df["env_family"] == env]
+        if env_df.empty:
+            continue
+
+        tiers = [t for t in TIER_ORDER if t in env_df["tier"].unique()]
+        if not tiers:
+            continue
+
+        fig, axes = plt.subplots(
+            len(tiers), 1,
+            figsize=(max(8.0, 1.1 * (len(algorithms) + 1)), 3.5 * len(tiers)),
+            squeeze=False,
+            sharey=True,  # same y-scale on every row so tiers are directly comparable
+        )
+
+        for ax, tier in zip(axes[:, 0], tiers):
+            tier_df = env_df[env_df["tier"] == tier].set_index("algorithm")
+            present_algos = [a for a in algorithms if a in tier_df.index]
+
+            means = [tier_df.loc[a, "mean_d4rl"] for a in present_algos]
+            stds = [tier_df.loc[a, "std_d4rl"] for a in present_algos]
+            mean_of_means = float(np.mean(means))
+            std_of_means = float(np.std(means))
+
+            labels = present_algos + ["Mean"]
+            values = means + [mean_of_means]
+            errors = stds + [std_of_means]
+            colors = [algo_colors[a] for a in present_algos] + [mean_color]
+
+            x = np.arange(len(labels))
+            bars = ax.bar(x, values, yerr=errors, capsize=3, color=colors,
+                          error_kw={"linewidth": 1})
+            bars[-1].set_edgecolor("black")
+            bars[-1].set_linewidth(1.5)
+
+            ax.set_xticks(x)
+            ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+            ax.set_ylabel("D4RL Score (%)", fontsize=10)
+            ax.set_title(TIER_LABELS.get(tier, tier), fontsize=11, loc="left")
+            ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.8)
+            ax.grid(axis="y", alpha=0.3)
+
+        fig.suptitle(
+            f"{ENV_LABELS.get(env, env)}: Cross-Algorithm Performance by Tier ({source_label})",
+            fontsize=14)
+        fig.tight_layout()
+
+        _save_figure(fig, f"{env}_tier_comparison.png", output_dir)
+
+
+# ---------------------------------------------------------------------------
 # Plot orchestration — selection (which source) stays separate from
 # rendering (the plot_* functions above, which never branch on source).
 # ---------------------------------------------------------------------------
@@ -991,6 +1086,15 @@ def generate_source_independent_figures(df_profiles: pd.DataFrame, output_dir: s
 
     print("\n  • Radar: All Tiers per Environment...")
     plot_all_datasets_radar(df_profiles, output_dir)
+
+
+def generate_cross_algorithm_figures(df_all_scores: pd.DataFrame, output_dir: str, source_label: str):
+    """Generate figures that compare every algorithm within a single result
+    source against each other, saved into output_dir (already namespaced by
+    the caller as .../cross_algorithm/RESULT_SOURCE/)."""
+    print("\n  • Cross-Algorithm Tier Comparison (grouped bars per tier)...")
+    plot_cross_algorithm_tier_comparison(
+        df_all_scores, output_dir, source_label=source_label)
 
 
 # ---------------------------------------------------------------------------
@@ -1060,6 +1164,22 @@ def main():
                     output_dir, "result_dependent", result_source, _slugify_algorithm(algorithm))
                 generate_score_dependent_figures(
                     df_results, df_meta, algo_output_dir, algorithm_label=algorithm)
+
+    # the structure of the cross-algorithm plots is output_dir/cross_algorithm/RESULT_SOURCE/
+    # these only need policy scores (no dataset profiles), grouped per result
+    # source so algorithms sharing a tier vocabulary get compared together
+    # (e.g. every d3rlpy_paper baseline, but not against our own self_trained runs)
+    for result_source, algorithms in policy_score_data.items():
+        df_all_scores = _all_scores_dict_to_df(algorithms)
+        if df_all_scores.dropna(subset=["mean_d4rl"]).empty:
+            continue
+
+        print(f"\n--- Cross-algorithm comparison: '{result_source}' ---")
+        generate_cross_algorithm_figures(
+            df_all_scores,
+            os.path.join(output_dir, "cross_algorithm", result_source),
+            source_label=result_source,
+        )
 
     print("\n[✓] Done.")
 
