@@ -1,55 +1,55 @@
 {
     "SAC": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 30.2,
                 "std": 1.9
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 30.1,
                 "std": 10.6
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 38.1,
                 "std": 7.3
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 0.0,
                 "std": 2.3
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 2.5,
                 "std": 1.7
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 2.1,
                 "std": 5.3
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 4.5,
                 "std": 3.8
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 1.7,
                 "std": 2.9
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 1.1,
                 "std": 0.6
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 1.2,
                 "std": 0.8
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 8.5,
                 "std": 11.8
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 7.8,
                 "std": 9.1
             }
@@ -57,55 +57,55 @@
     },
     "AWAC": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 15.2,
                 "std": 1.3
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 41.9,
                 "std": 0.4
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 42.4,
                 "std": 1.4
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 16.1,
                 "std": 4.2
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 4.3,
                 "std": 1.9
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 65.6,
                 "std": 11.3
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 22.5,
                 "std": 7.0
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 7.9,
                 "std": 22.0
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 11.1,
                 "std": 0.1
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 40.7,
                 "std": 20.3
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 34.0,
                 "std": 4.1
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 42.7,
                 "std": 46.5
             }
@@ -113,55 +113,55 @@
     },
     "BCQ": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 2.3,
                 "std": 0.0
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 40.1,
                 "std": 0.5
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 39.0,
                 "std": 1.9
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 60.1,
                 "std": 11.1
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 4.2,
                 "std": 1.5
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 47.7,
                 "std": 7.8
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 15.2,
                 "std": 4.6
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 43.6,
                 "std": 14.0
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 10.5,
                 "std": 0.2
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 52.5,
                 "std": 22.8
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 16.1,
                 "std": 7.7
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 111.5,
                 "std": 2.8
             }
@@ -169,55 +169,55 @@
     },
     "BEAR": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 2.3,
                 "std": 0.0
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 36.6,
                 "std": 0.9
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 37.1,
                 "std": 2.0
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 45.4,
                 "std": 7.4
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 4.6,
                 "std": 1.4
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 57.4,
                 "std": 10.5
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 13.6,
                 "std": 3.1
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 59.1,
                 "std": 9.6
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 10.1,
                 "std": 0.2
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 34.8,
                 "std": 8.0
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 27.8,
                 "std": 6.3
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 77.8,
                 "std": 19.9
             }
@@ -225,55 +225,55 @@
     },
     "CQL": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 29.7,
                 "std": 1.5
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 41.7,
                 "std": 0.2
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 43.6,
                 "std": 3.0
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 9.0,
                 "std": 2.8
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 2.0,
                 "std": 2.8
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 77.8,
                 "std": 5.1
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 20.5,
                 "std": 4.2
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 54.7,
                 "std": 37.3
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 10.8,
                 "std": 0.1
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 50.1,
                 "std": 19.9
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 31.1,
                 "std": 3.4
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 105.1,
                 "std": 7.8
             }
@@ -281,55 +281,55 @@
     },
     "CRR": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 18.9,
                 "std": 7.0
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 41.9,
                 "std": 0.4
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 42.0,
                 "std": 0.4
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 8.4,
                 "std": 1.7
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 2.3,
                 "std": 1.9
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 43.3,
                 "std": 17.5
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 26.7,
                 "std": 4.6
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 41.1,
                 "std": 12.3
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 10.9,
                 "std": 1.3
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 26.1,
                 "std": 32.3
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 13.3,
                 "std": 14.0
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 0.8,
                 "std": 0.1
             }
@@ -337,55 +337,55 @@
     },
     "IQL": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 14.4,
                 "std": 2.3
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 41.1,
                 "std": 0.2
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 40.9,
                 "std": 0.9
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 55.2,
                 "std": 7.9
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 5.8,
                 "std": 0.3
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 59.7,
                 "std": 8.9
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 14.3,
                 "std": 4.4
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 92.3,
                 "std": 22.3
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 11.1,
                 "std": 0.1
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 31.1,
                 "std": 0.3
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 38.1,
                 "std": 5.3
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 112.3,
                 "std": 0.2
             }
@@ -393,55 +393,55 @@
     },
     "PLAS": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 26.9,
                 "std": 1.4
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 39.8,
                 "std": 0.4
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 43.9,
                 "std": 0.4
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 81.2,
                 "std": 9.6
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 6.5,
                 "std": 7.2
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 33.0,
                 "std": 9.7
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 20.9,
                 "std": 13.3
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 93.5,
                 "std": 9.1
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 10.4,
                 "std": 0.3
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 58.1,
                 "std": 23.7
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 17.5,
                 "std": 13.3
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 110.8,
                 "std": 31.8
             }
@@ -449,55 +449,55 @@
     },
     "PLAS+P": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 27.3,
                 "std": 2.3
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 42.0,
                 "std": 0.6
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 44.8,
                 "std": 1.0
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 81.6,
                 "std": 8.1
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 4.5,
                 "std": 5.0
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 66.1,
                 "std": 6.8
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 9.2,
                 "std": 10.4
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 86.3,
                 "std": 10.4
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 12.5,
                 "std": 1.5
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 53.6,
                 "std": 24.0
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 20.0,
                 "std": 26.2
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 77.5,
                 "std": 50.4
             }
@@ -505,55 +505,55 @@
     },
     "TD3+BC": {
         "halfcheetah": {
-            "random": {
+            "random-v0": {
                 "mean": 11.4,
                 "std": 1.5
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 42.4,
                 "std": 1.5
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 42.8,
                 "std": 2.1
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 89.2,
                 "std": 6.8
             }
         },
         "walker2d": {
-            "random": {
+            "random-v0": {
                 "mean": 2.1,
                 "std": 2.4
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 76.7,
                 "std": 3.2
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 26.4,
                 "std": 5.7
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 91.0,
                 "std": 14.4
             }
         },
         "hopper": {
-            "random": {
+            "random-v0": {
                 "mean": 10.9,
                 "std": 0.1
             },
-            "medium": {
+            "medium-v0": {
                 "mean": 95.9,
                 "std": 12.1
             },
-            "medium-replay": {
+            "medium-replay-v0": {
                 "mean": 31.4,
                 "std": 8.0
             },
-            "medium-expert": {
+            "medium-expert-v0": {
                 "mean": 112.3,
                 "std": 0.3
             }
