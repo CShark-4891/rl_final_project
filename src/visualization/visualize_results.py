@@ -1,33 +1,12 @@
-"""
-visualize_results.py
-====================
-Standalone visualisation script for offline RL experiment results.
-
-Reads pipeline outputs (global_pipeline_report.json), dataset profiles
-(mujoco_*.json), and the meta-analysis registry (meta_analysis_registry.csv)
-to produce publication-ready figures.
-
-Usage:
-    python visualize_results.py
-    python visualize_results.py --results-dir ../results/cql_runs
-    python visualize_results.py --profiles-dir ../dataset_profiles
-    python visualize_results.py --output-dir ../results/figures
-
-    # Plot performance/seed-consistency figures using published d3rlpy paper
-    # results (src/results/d3rlpy_paper_results/d4rl.py) instead of our own
-    # pipeline results, e.g. to compare against CQL, IQL, TD3+BC, ...
-    python visualize_results.py --paper-algorithm IQL
-
-Dependencies: matplotlib, seaborn, pandas, numpy, scikit-learn
-No GPU, d3rlpy, torch, or MuJoCo required.
-"""
-
 import argparse
+from functools import reduce
 import glob
 import importlib.util
 import json
 import os
 import warnings
+from dataclasses import dataclass
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,7 +16,14 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor
 
+from configs import default_paths
+
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# Project root, two levels up from this script (src/visualization/... -> src
+# -> project root). default_paths.py constants are expressed relative to it.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -151,147 +137,131 @@ def _normalize_raw_score(env_family: str, raw_score: float) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-def _parse_env_tier_from_path(path: str):
+def _parse_env_tier_from_path(dataset_name: str):
     """Extract (env_name, tier_name) from a path like .../hopper/expert-v0 or .../hopper/expert/..."""
-    parts = path.replace("\\", "/").split("/")
+    parts = dataset_name.replace("\\", "/").replace("/", "-").split("-")
     for env in ENV_ORDER:
         if env in parts:
             idx = parts.index(env)
             if idx + 1 < len(parts):
-                raw = parts[idx + 1]
-                # Strip version suffix like -v0, -v2, -v4, -v5
-                tier = raw.split("-")[0] if "-" in raw else raw
+                tier = reduce(lambda x, y: x + "-" + y, parts[idx + 1:])
                 return env, tier
-    # Fallback: try to match env name anywhere in the string
-    for env in ENV_ORDER:
-        if env in path.lower():
-            for tier in TIER_ORDER:
-                if tier in path.lower():
-                    return env, tier
+        else:
+            print(
+                f"Warning: Environment '{env}' not found considered for visualization.")
     return None, None
 
 
-def _load_all_pipeline_reports(results_dir: str) -> pd.DataFrame:
+def _load_all_policy_reports(policy_results_dir: str = default_paths.POLICY_RESULTS_DIR) -> dict:
     """Walk results_dir, load every global_pipeline_report.json, return DataFrame."""
-    pattern = os.path.join(results_dir, "**", "global_pipeline_report.json")
-    paths = glob.glob(pattern, recursive=True)
+    result_sources = os.listdir(policy_results_dir)
 
-    rows = []
-    for p in paths:
-        with open(p, "r") as f:
-            data = json.load(f)
+    ret = {}
 
-        env_name = data.get("environment", "")
-        agg = data.get("aggregate_performance", {})
-        mean_d4rl = agg.get("mean_d4rl_score")
-        std_d4rl = agg.get("std_d4rl_score")
+    for result_source in result_sources:
+        if result_source not in ret.keys():
+            ret[result_source] = {}
 
-        # Extract env family and tier from the environment string
-        env_family, tier = _parse_env_tier_from_path(env_name)
-        if env_family is None:
-            # Fallback: try from the path itself
-            env_family, tier = _parse_env_tier_from_path(p)
-
-        # Skip if we still can't parse env/tier
-        if env_family is None or tier is None:
+        if not os.path.isdir(os.path.join(policy_results_dir, result_source)):
             continue
 
-        # Collect seed-level data AND re-normalize from raw scores
-        seed_data = []
-        for seed_key, telemetry in data.get("seed_level_telemetry", {}).items():
-            raw = telemetry.get("mean_raw_score")
-            # Re-normalize from raw score (always correct) rather than trusting
-            # the stored d4rl_normalized_score which may have been computed with
-            # missing reference values.
-            normalized = _normalize_raw_score(
-                env_family, raw) if raw is not None else None
-            seed_data.append({
-                "seed": int(seed_key),
-                "mean_raw_score": raw,
-                "std_raw_score": telemetry.get("std_raw_score"),
-                "d4rl_normalized_score": normalized,
-            })
+        source_path = os.path.join(policy_results_dir, result_source)
 
-        # Re-compute aggregate from re-normalized seed scores
-        valid_scores = [sd["d4rl_normalized_score"]
-                        for sd in seed_data if sd["d4rl_normalized_score"] is not None]
-        if valid_scores:
-            mean_d4rl = float(np.mean(valid_scores))
-            std_d4rl = float(np.std(valid_scores))
-        else:
-            mean_d4rl = None
-            std_d4rl = None
+        files_and_dirs = os.listdir(source_path)
 
-        rows.append({
-            "env_name": env_name,
-            "env_family": env_family,
-            "tier": tier,
-            "mean_d4rl": mean_d4rl,
-            "std_d4rl": std_d4rl,
-            "report_path": p,
-            "seed_data": seed_data,
-        })
+        # check wehther there is only one json object
+        json_objects = [f for f in files_and_dirs if f.endswith(".json")]
+        if len(json_objects) != 1:
+            raise Exception(
+                f"Expected exactly one combined JSON score object in {source_path}, found {len(json_objects)}")
 
-    return pd.DataFrame(rows)
+        with open(os.path.join(source_path, json_objects[0]), "r") as f:
+            data = json.load(f)
+
+            ret[result_source] = data
+
+    return ret
 
 
-def _load_all_dataset_profiles(profiles_dir: str) -> pd.DataFrame:
+def _load_all_dataset_profiles(profiles_dir: str = default_paths.DATASET_PROFILES_DIR) -> dict:
     """Load all mujoco_*.json profile files into a DataFrame."""
-    pattern = os.path.join(profiles_dir, "mujoco_*.json")
-    paths = glob.glob(pattern, recursive=False)
+    sources = os.listdir(profiles_dir)
 
-    rows = []
-    for p in paths:
-        with open(p, "r") as f:
-            profile = json.load(f)
+    ret = {}
+    for source in sources:
+        if source not in ret.keys():
+            ret[source] = {}
+        source_path = os.path.join(profiles_dir, source)
 
-        dataset_name = profile.get("Dataset", "")
-        env_family, tier = _parse_env_tier_from_path(dataset_name)
+        if not os.path.isdir(source_path):
+            continue
 
-        coverage = profile.get("Coverage", {})
-        quality = profile.get("Quality", {})
-        diversity = profile.get("Diversity", {})
-        size_info = profile.get("Size", {})
+        profiles = os.listdir(source_path)
 
-        rows.append({
-            "dataset": dataset_name,
-            "env_family": env_family,
-            "tier": tier,
-            "State_Coverage_Entropy": coverage.get("State Entropy", np.nan),
-            "State_Spread": coverage.get("State Spread", np.nan),
-            "State_Cluster_Coverage": coverage.get("State Cluster Coverage", np.nan),
-            "Action_Variance": coverage.get("Action Variance", np.nan),
-            "Action_Entropy": coverage.get("Action Entropy", np.nan),
-            "Mean_Return": quality.get("Mean Return", np.nan),
-            "Std_Return": quality.get("Std Return", np.nan),
-            "Reward_Sparsity": quality.get("Reward Sparsity", np.nan),
-            "Trajectory_Diversity": diversity.get("Trajectory Diversity", np.nan),
-            "Transitions": size_info.get("Transitions", np.nan),
-            "Episodes": size_info.get("Episodes", np.nan),
-            "Avg_Episode_Length": size_info.get("Average Episode Length", np.nan),
-        })
+        for profile in profiles:
+            if not profile.endswith(".json"):
+                continue
 
-    return pd.DataFrame(rows)
+            profile_path = os.path.join(source_path, profile)
+            with open(profile_path, "r") as f:
+                data = json.load(f)
+
+            dataset_name = data.get("Dataset", "")
+            env_family, tier = _parse_env_tier_from_path(dataset_name)
+            if not env_family or not tier:
+                continue
+            if env_family not in ret[source].keys():
+                ret[source][env_family] = {}
+
+            coverage = data.get("Coverage", {})
+            quality = data.get("Quality", {})
+            diversity = data.get("Diversity", {})
+            size_info = data.get("Size", {})
+
+            ret[source][env_family][tier] = {
+                "dataset": dataset_name,
+                "env_family": env_family,
+                "tier": tier,
+                "State_Coverage_Entropy": coverage.get("State Entropy", np.nan),
+                "State_Spread": coverage.get("State Spread", np.nan),
+                "State_Cluster_Coverage": coverage.get("State Cluster Coverage", np.nan),
+                "Action_Variance": coverage.get("Action Variance", np.nan),
+                "Action_Entropy": coverage.get("Action Entropy", np.nan),
+                "Mean_Return": quality.get("Mean Return", np.nan),
+                "Std_Return": quality.get("Std Return", np.nan),
+                "Reward_Sparsity": quality.get("Reward Sparsity", np.nan),
+                "Trajectory_Diversity": diversity.get("Trajectory Diversity", np.nan),
+                "Transitions": size_info.get("Transitions", np.nan),
+                "Episodes": size_info.get("Episodes", np.nan),
+                "Avg_Episode_Length": size_info.get("Average Episode Length", np.nan),
+            }
+
+    return ret
 
 
 def _load_meta_registry(profiles_dir: str) -> pd.DataFrame:
-    """Load the meta_analysis_registry.csv if it exists."""
+    """Load the meta_analysis_registry.csv if it exists.
+
+    Returns an empty DataFrame with the expected columns (rather than a
+    columnless one) when the file is missing, so downstream dropna(subset=...)
+    calls in the meta-driven plot functions degrade to "no data" instead of
+    raising a KeyError.
+    """
     csv_path = os.path.join(profiles_dir, "meta_analysis_registry.csv")
     if not os.path.exists(csv_path):
-        return pd.DataFrame()
+        return pd.DataFrame(columns=["Dataset_ID"] + META_FEATURES + ["Normalized_Target_Score"])
     return pd.read_csv(csv_path)
 
 
 def _load_paper_results() -> dict:
-    """Load the RESULTS dict from src/results/d3rlpy_paper_results/d4rl.py.
+    """Load the RESULTS dict from
+    src/results/policy_results/d3rlpy_paper_results/d4rl.py.
 
     Loaded by file path (rather than package import) since this script is
     also run standalone outside the src/ package.
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     module_path = os.path.normpath(
-        os.path.join(script_dir, "..", "results",
-                     "d3rlpy_paper_results", "d4rl.py")
+        os.path.join(_PROJECT_ROOT, default_paths.PAPER_RESULTS_DIR, "d4rl.py")
     )
     spec = importlib.util.spec_from_file_location(
         "d3rlpy_paper_d4rl_results", module_path)
@@ -328,7 +298,7 @@ def _build_meta_with_paper_target(df_meta: pd.DataFrame, algorithm: str) -> pd.D
     if algorithm not in paper_results:
         available = ", ".join(sorted(paper_results.keys()))
         raise ValueError(
-            f"Unknown --paper-algorithm '{algorithm}'. Available: {available}")
+            f"Unknown --source '{algorithm}'. Available paper algorithms: {available}")
     algo_scores = paper_results[algorithm]
 
     def lookup(dataset_id):
@@ -370,7 +340,7 @@ def _load_results_from_paper(algorithm: str) -> pd.DataFrame:
     if algorithm not in paper_results:
         available = ", ".join(sorted(paper_results.keys()))
         raise ValueError(
-            f"Unknown --paper-algorithm '{algorithm}'. Available: {available}")
+            f"Unknown --source '{algorithm}'. Available paper algorithms: {available}")
 
     rows = []
     for dataset_key, scores in paper_results[algorithm].items():
@@ -388,6 +358,11 @@ def _load_results_from_paper(algorithm: str) -> pd.DataFrame:
         })
 
     return pd.DataFrame(rows)
+
+
+def _slugify_algorithm(algorithm: str) -> str:
+    """Turn an algorithm name like 'TD3+BC' into a directory-safe slug."""
+    return algorithm.lower().replace("+", "plus").replace(" ", "_")
 
 
 def _save_figure(fig, filename: str, output_dir: str, dpi: int = 150):
@@ -502,7 +477,8 @@ def plot_metrics_vs_performance(
     output_filename: str = "metrics_vs_performance.png",
 ):
     """2x2 scatter subplot: each meta-feature vs. D4RL score with trend line."""
-    df = df_meta.dropna(subset=META_FEATURES + ["Normalized_Target_Score"]).copy()
+    df = df_meta.dropna(subset=META_FEATURES +
+                        ["Normalized_Target_Score"]).copy()
     if df.empty:
         print("  [!] No meta-registry data for metrics-vs-performance plot.")
         return
@@ -619,7 +595,8 @@ def plot_feature_importance(
     output_filename: str = "feature_importance.png",
 ):
     """Random Forest feature importance as a horizontal bar chart."""
-    df = df_meta.dropna(subset=META_FEATURES + ["Normalized_Target_Score"]).copy()
+    df = df_meta.dropna(subset=META_FEATURES +
+                        ["Normalized_Target_Score"]).copy()
     if df.empty:
         print("  [!] No meta-registry data for feature importance.")
         return
@@ -679,7 +656,8 @@ def plot_predicted_vs_actual(
     """Scatter plot: predicted D4RL score vs. actual, using a GBR trained on
     the meta-registry with leave-one-dataset-out cross-validation."""
 
-    df = df_meta.dropna(subset=META_FEATURES + ["Normalized_Target_Score"]).copy()
+    df = df_meta.dropna(subset=META_FEATURES +
+                        ["Normalized_Target_Score"]).copy()
     if len(df) < 3:
         print("  [!] Too few data points for predicted-vs-actual plot.")
         return
@@ -974,134 +952,89 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Plot orchestration — selection (which source) stays separate from
+# rendering (the plot_* functions above, which never branch on source).
 # ---------------------------------------------------------------------------
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate visualisations for offline RL experiment results.")
-    parser.add_argument(
-        "--results-dir", type=str, default="../policy_results/self_trained_cql_results",
-        help="Path to the cql_runs results directory.")
-    parser.add_argument(
-        "--profiles-dir", type=str, default="../dataset_profiles",
-        help="Path to the dataset_profiles directory.")
-    parser.add_argument(
-        "--output-dir", type=str, default="../results/figures",
-        help="Directory to save generated figures.")
-    parser.add_argument(
-        "--paper-algorithm", type=str, default=None,
-        help="If set, plot performance/seed-consistency figures using published "
-             "d3rlpy paper D4RL results for this algorithm (see "
-             "src/results/d3rlpy_paper_results/d4rl.py for available names, e.g. "
-             "CQL, IQL, TD3+BC) instead of our own pipeline results.")
-    args = parser.parse_args()
+def generate_score_dependent_figures(
+    df_results: pd.DataFrame,
+    df_meta: pd.DataFrame,
+    base_output_dir: str,
+):
+    """Generate every figure whose content depends on the selected result
+    source (algorithm + origin), saved into its own
+    base_output_dir/<source.slug>/ subdirectory so different sources never
+    overwrite each other's figures."""
+    output_dir = os.path.join(base_output_dir, source.slug)
+    print(f"\n  --- {source.label}  ->  {output_dir} ---")
 
-    # Resolve paths relative to this script's location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    results_dir = os.path.normpath(os.path.join(script_dir, args.results_dir))
-    profiles_dir = os.path.normpath(
-        os.path.join(script_dir, args.profiles_dir))
-    output_dir = os.path.normpath(os.path.join(script_dir, args.output_dir))
+    print("  • Performance Overview (grouped bar chart)...")
+    plot_performance_overview(df_results, output_dir,
+                              algorithm_label=source.label)
 
-    print("=" * 60)
-    print("  Offline RL Results Visualisation")
-    print("=" * 60)
-    print(f"  Results dir:  {results_dir}")
-    print(f"  Profiles dir: {profiles_dir}")
-    print(f"  Output dir:   {output_dir}")
-    print("=" * 60)
-
-    # ---- Load data ----
-    print("\n[1/3] Loading pipeline results...")
-    if args.paper_algorithm:
-        print(
-            f"       Using d3rlpy paper results for algorithm: {args.paper_algorithm}")
-        df_results = _load_results_from_paper(args.paper_algorithm)
-    else:
-        df_results = _load_all_pipeline_reports(results_dir)
-    print(f"       Found {len(df_results)} dataset report(s).")
-
-    print("\n[2/3] Loading dataset profiles...")
-    df_profiles = _load_all_dataset_profiles(profiles_dir)
-    print(f"       Found {len(df_profiles)} profile(s).")
-
-    print("\n[3/3] Loading meta-analysis registry...")
-    df_meta = _load_meta_registry(profiles_dir)
-    print(f"       Found {len(df_meta)} row(s).")
-
-    # When plotting against paper results, swap in the paper algorithm's
-    # scores as the prediction target while keeping our own dataset
-    # meta-features. Rows whose tier has no counterpart in the paper's D4RL
-    # naming (our 'simple'/'expert' vs. the paper's 'random'/'medium-expert')
-    # end up with no target and are dropped by each plot function as usual.
-    algo_label = "CQL"
-    filename_suffix = ""
-    if args.paper_algorithm:
-        algo_label = args.paper_algorithm
-        filename_suffix = "_" + args.paper_algorithm.lower().replace("+", "plus")
-        df_meta = _build_meta_with_paper_target(df_meta, args.paper_algorithm)
-        n_matched = df_meta["Normalized_Target_Score"].notna(
-        ).sum() if not df_meta.empty else 0
-        print(f"       Matched {n_matched}/{len(df_meta)} row(s) to '{algo_label}' paper scores "
-              f"(tier-name mismatches, e.g. simple/expert vs. random/medium-expert, are dropped).")
-
-    # ---- Generate plots ----
-    print("\n" + "=" * 60)
-    print("  Generating Figures")
-    print("=" * 60)
-
-    print("\n  • Performance Overview (grouped bar chart)...")
-    plot_performance_overview(
-        df_results, output_dir,
-        algorithm_label=algo_label,
-        output_filename=f"performance_overview{filename_suffix}.png",
-    )
-
-    print("\n  • Metrics vs. Performance (scatter + trend)...")
+    print("  • Metrics vs. Performance (scatter + trend)...")
     plot_metrics_vs_performance(
-        df_meta, output_dir,
-        algorithm_label=algo_label,
-        output_filename=f"metrics_vs_performance{filename_suffix}.png",
-    )
+        df_meta, output_dir, algorithm_label=source.label)
 
-    print("\n  • Correlation Heatmap...")
-    plot_correlation_heatmap(
-        df_meta, output_dir,
-        algorithm_label=algo_label,
-        output_filename=f"correlation_heatmap{filename_suffix}.png",
-    )
+    print("  • Correlation Heatmap...")
+    plot_correlation_heatmap(df_meta, output_dir, algorithm_label=source.label)
 
-    print("\n  • Feature Importance (Random Forest)...")
-    plot_feature_importance(
-        df_meta, output_dir,
-        algorithm_label=algo_label,
-        output_filename=f"feature_importance{filename_suffix}.png",
-    )
+    print("  • Feature Importance (Random Forest)...")
+    plot_feature_importance(df_meta, output_dir, algorithm_label=source.label)
 
-    print("\n  • Predicted vs. Actual (LOO-CV)...")
-    plot_predicted_vs_actual(
-        df_meta, output_dir,
-        algorithm_label=algo_label,
-        output_filename=f"predicted_vs_actual{filename_suffix}.png",
-    )
+    print("  • Predicted vs. Actual (LOO-CV)...")
+    plot_predicted_vs_actual(df_meta, output_dir, algorithm_label=source.label)
 
-    print("\n  • Seed Consistency (boxplot)...")
-    plot_seed_consistency(
-        df_results, output_dir,
-        output_filename=f"seed_consistency{filename_suffix}.png",
-    )
+    print("  • Seed Consistency (boxplot)...")
+    plot_seed_consistency(df_results, output_dir)
 
+
+def generate_source_independent_figures(df_profiles: pd.DataFrame, output_dir: str):
+    """Generate figures that depend only on dataset profiles, never on any
+    algorithm's performance, so they're identical across every result
+    source. Saved once, directly into output_dir (no per-source subdir)."""
     print("\n  • Radar: Expert vs. Simple per Environment...")
     plot_radar_comparison(df_profiles, output_dir)
 
     print("\n  • Radar: All Tiers per Environment...")
     plot_all_datasets_radar(df_profiles, output_dir)
 
-    print("\n" + "=" * 60)
-    print(f"  All figures saved to: {output_dir}")
-    print("=" * 60)
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def main():
+   
+
+    # Resolve paths relative to the project root — default_paths.py constants
+    # are expressed relative to it (e.g. "src\\results\\...").
+    policy_report_dir = os.path.normpath(
+        os.path.join(_PROJECT_ROOT, default_paths.PIPELINE_RESULT_DIR))
+    profiles_dir = os.path.normpath(
+        os.path.join(_PROJECT_ROOT, default_paths.DATASET_PROFILES_DIR))
+    output_dir = os.path.normpath(os.path.join(_PROJECT_ROOT, default_paths.DEFAULT_FIGURE_OUTPUT_DIR))
+
+    # ---- Load data shared across every source ----
+    print("\n[1/2] Loading dataset profiles & meta-analysis registry...")
+
+    # the structure is profiles_dir/DATASET_SOURCE/DATASET/TIER/...
+    dataset_profile_data: dict = _load_all_dataset_profiles(profiles_dir)
+    # the structure is policy_report_dir/RESULT_SOURCE/ALGORITHM/DATASET/TIER/...
+    policy_score_data: dict = _load_all_policy_reports(policy_report_dir)
+
+    print(json.dumps(dataset_profile_data, indent=2))
+    print(json.dumps(policy_score_data, indent=2))
+
+    # the structure of the result independent plots is output_dir/DATASET_SOURCE/ => for result independent plots
+    # the structure of the result dependent plots is output_dir/RESULT_SOURCE/ALGORITHM/ => for result dependent plots
+    # only create plots for dataset sources that have both profiles and policy reports
+
+    # Call the individual plot functions is here
+
+    ...
 
 
 if __name__ == "__main__":
