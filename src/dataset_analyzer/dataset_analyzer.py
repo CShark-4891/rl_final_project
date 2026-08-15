@@ -11,6 +11,8 @@ from dataset_analyzer.profile_feature_computer import ProfileFeatureComputer
 PRINT_VERBOSE = True
 PLOT_HISTOGRAMS = False
 
+CALCULATE_EAS = False
+
 
 def load_d4rl_dataset(env_name):
 
@@ -179,8 +181,11 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
         states, actions, n_state_clusters)
 
     # mean Estimated Action Stochasticity EAS and normalized Expected Return Index ERI as in Swazinna et al
-    eas = ProfileFeatureComputer.compute_mean_estimated_action_stochasticity(
-        actions, states)
+    if CALCULATE_EAS:
+        eas = ProfileFeatureComputer.compute_mean_estimated_action_stochasticity(
+            actions, states)
+    else:
+        eas = 0.0
     eri = ProfileFeatureComputer.compute_normalized_ERI(
         float(np.min(returns)),
         float(np.max(returns)),
@@ -278,9 +283,23 @@ if __name__ == "__main__":
         'walker2d-random-v0',
     ]
 
-    for dataset in d4rl_datasets:
-        print(f"[+] Analyzing {dataset}")
-        profile = analyze_dataset(dataset)
-        # break
-        print(json.dumps(profile, indent=4))
-        save_profile(profile)
+    # Each dataset source gets its own subdirectory under
+    # DATASET_PROFILES_DIR (profiles + histograms), matching the existing
+    # src/results/dataset_profiles/{d4rl,minari}/ layout.
+    dataset_sources = [
+        (minari_datasets, os.path.join(
+            default_paths.DATASET_PROFILES_DIR, "minari")),
+        (d4rl_datasets, os.path.join(
+            default_paths.DATASET_PROFILES_DIR, "d4rl")),
+    ]
+
+    for datasets, output_dir in dataset_sources:
+        for dataset in datasets:
+            try:
+                print(f"[+] Analyzing {dataset}")
+                profile = analyze_dataset(dataset, output_dir=output_dir)
+                # break
+                print(json.dumps(profile, indent=4))
+                save_profile(profile, output_dir=output_dir)
+            except Exception as e:
+                print(f"Could not analyse dataset {dataset}. The pipeline yielded an exception; {e}")

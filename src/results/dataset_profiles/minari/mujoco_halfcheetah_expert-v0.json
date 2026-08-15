@@ -10,7 +10,8 @@
         "State Cluster Coverage": 1.0,
         "State Entropy": 0.8655808697462886,
         "Action Variance": 0.5861822962760925,
-        "Action Entropy": 3.4508648633505365
+        "Action Entropy": 3.4508648633505365,
+        "EAS": 0.0
     },
     "Quality": {
         "Mean Return": 16242.92451511629,
@@ -18,7 +19,8 @@
         "Min Return": -79.20461737383002,
         "Max Return": 16584.931906529895,
         "Median Return": 16409.5686613398,
-        "Reward Sparsity": 0.0
+        "Reward Sparsity": 0.0,
+        "ERI": -0.02052355913689348
     },
     "Diversity": {
         "Trajectory Diversity": 0.9123823995115531
