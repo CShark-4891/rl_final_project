@@ -10,6 +10,7 @@ from scipy.stats import entropy
 from configs import default_paths
 
 PRINT_VERBOSE = True
+PLOT_HISTOGRAMS = False
 
 
 def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
@@ -134,10 +135,97 @@ def compute_normalized_ERI(min_return, max_return, mean_return) -> float:
         return float(((mean_return) - (max_return)) / (max_return))
 
 
-def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
+def compute_trajectory_diversity(episodes, n_traj_clusters) -> float:
+    # Metric 3: Trajectory diversity
+    trajectory_features = []
+
+    for episode in episodes:
+        ep_actions = episode["actions"]
+        if ep_actions.ndim == 1:
+            ep_actions = ep_actions.reshape(-1, 1)
+
+        trajectory_features.append(np.concatenate(
+            [np.mean(episode["observations"], axis=0),
+                np.std(episode["observations"], axis=0),
+                np.mean(ep_actions, axis=0),
+                np.std(ep_actions, axis=0),
+                [np.sum(episode["rewards"]), len(episode["rewards"])]]
+        ))
+
+    trajectory_features = np.array(trajectory_features)
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(trajectory_features)
+
+    # Run K-Means on scaled features
+    trajectory_model = MiniBatchKMeans(
+        n_clusters=n_traj_clusters,
+        random_state=42,
+        n_init="auto"
+    )
+    traj_labels = trajectory_model.fit_predict(scaled_features)
+
+    trajectory_diversity = normalized_cluster_entropy(
+        traj_labels, n_traj_clusters)
+
+    return trajectory_diversity
+
+
+def compute_state_coverage(states, actions, n_state_clusters) -> tuple:
+    state_spread = float(np.mean(np.std(states, axis=0)))
+
+    # Scale states before clustering so high-variance dimensions don't
+    # dominate the cluster assignment
+    state_scaler = StandardScaler()
+    scaled_states = state_scaler.fit_transform(states)
+
+    state_model = MiniBatchKMeans(
+        n_clusters=n_state_clusters,
+        random_state=42,
+        n_init="auto"
+    )
+    state_labels = state_model.fit_predict(scaled_states)
+
+    state_cluster_coverage = float(
+        len(np.unique(state_labels)) / n_state_clusters)
+    state_entropy_coverage = normalized_cluster_entropy(
+        state_labels, n_state_clusters)
+
+    # Metric 1.2: Action variance and entropy -> Action Coverage
+    action_variance = float(np.mean(np.var(actions, axis=0)))
+    action_entropy = float(np.mean([
+        calculate_entropy(actions[:, i]) for i in range(actions.shape[1])
+    ]))
+
+    return state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy
+
+
+def plot_histograms(states, actions, env_name, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
+    # create histogram of state and action distributions and plot them
+    hist_dir = os.path.join(output_dir, "histograms")
+    os.makedirs(hist_dir, exist_ok=True)
+    name = env_name.replace("/", "_")
+
+    plot_feature_histograms(
+        states, "State Feature",
+        os.path.join(
+            hist_dir, f"state_features\\{name}_state_histograms.png"),
+        n_bins=hist_bins
+    )
+    plot_feature_histograms(
+        actions, "Action Feature",
+        os.path.join(
+            hist_dir, f"action_features\\{name}_action_histograms.png"),
+        n_bins=hist_bins
+    )
+
+
+def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
-    episodes = load_d4rl_dataset(env_name)
+    if "mujoco" in env_name.lower() or "minari" in env_name.lower():
+        episodes = load_minari_dataset(env_name)
+    else:
+        episodes = load_d4rl_dataset(env_name)
 
     states = np.concatenate(
         [episode["observations"] for episode in episodes]
@@ -178,83 +266,15 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
         print(
             f"[+] Reward | min = {np.min(rewards):.4f}, max = {np.max(rewards):.4f}, mean = {np.mean(rewards):.4f}, std = {np.std(rewards):.4f}")
 
-    # create histogram of state and action distributions and plot them
-    hist_dir = os.path.join(output_dir, "histograms")
-    os.makedirs(hist_dir, exist_ok=True)
-    name = env_name.replace("/", "_")
+    if PLOT_HISTOGRAMS:
+        plot_histograms(states, actions, env_name, hist_bins=hist_bins, output_dir=output_dir)
 
-    plot_feature_histograms(
-        states, "State Feature",
-        os.path.join(
-            hist_dir, f"state_features\\{name}_state_histograms.png"),
-        n_bins=hist_bins
-    )
-    plot_feature_histograms(
-        actions, "Action Feature",
-        os.path.join(
-            hist_dir, f"action_features\\{name}_action_histograms.png"),
-        n_bins=hist_bins
-    )
-
-    n_state_clusters = min(clusters, len(states))
-    n_traj_clusters = min(clusters, len(episodes))
+    n_state_clusters = min(n_clusters, len(states))
+    n_traj_clusters = min(n_clusters, len(episodes))
 
     # Metric 1.1: State coverage
-    state_spread = float(np.mean(np.std(states, axis=0)))
-
-    # Scale states before clustering so high-variance dimensions don't
-    # dominate the cluster assignment
-    state_scaler = StandardScaler()
-    scaled_states = state_scaler.fit_transform(states)
-
-    state_model = MiniBatchKMeans(
-        n_clusters=n_state_clusters,
-        random_state=42,
-        n_init="auto"
-    )
-    state_labels = state_model.fit_predict(scaled_states)
-
-    state_cluster_coverage = float(
-        len(np.unique(state_labels)) / n_state_clusters)
-    state_entropy_coverage = normalized_cluster_entropy(
-        state_labels, n_state_clusters)
-
-    # Metric 1.2: Action variance and entropy -> Action Coverage
-    action_variance = float(np.mean(np.var(actions, axis=0)))
-    action_entropy = float(np.mean([
-        calculate_entropy(actions[:, i]) for i in range(actions.shape[1])
-    ]))
-
-    # Metric 3: Trajectory diversity
-    trajectory_features = []
-
-    for episode in episodes:
-        ep_actions = episode["actions"]
-        if ep_actions.ndim == 1:
-            ep_actions = ep_actions.reshape(-1, 1)
-
-        trajectory_features.append(np.concatenate(
-            [np.mean(episode["observations"], axis=0),
-             np.std(episode["observations"], axis=0),
-             np.mean(ep_actions, axis=0),
-             np.std(ep_actions, axis=0),
-             [np.sum(episode["rewards"]), len(episode["rewards"])]]
-        ))
-
-    trajectory_features = np.array(trajectory_features)
-    scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(trajectory_features)
-
-    # Run K-Means on scaled features
-    trajectory_model = MiniBatchKMeans(
-        n_clusters=n_traj_clusters,
-        random_state=42,
-        n_init="auto"
-    )
-    traj_labels = trajectory_model.fit_predict(scaled_features)
-
-    trajectory_diversity = normalized_cluster_entropy(
-        traj_labels, n_traj_clusters)
+    state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy = compute_state_coverage(
+        states, actions, n_state_clusters)
 
     return {
         "Dataset": env_name,
@@ -288,7 +308,7 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
         },
 
         "Diversity": {
-            "Trajectory Diversity": trajectory_diversity
+            "Trajectory Diversity": compute_trajectory_diversity(episodes, n_traj_clusters)
         }
     }
 
