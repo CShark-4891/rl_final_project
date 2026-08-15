@@ -119,8 +119,9 @@ RESULT_SOURCE_TO_PROFILE_SOURCE = {
 FEATURE_LABELS = {
     # Coverage
     "State_Coverage_Entropy": "State Coverage Entropy",
-    "State_Spread": "State Spread",
-    "Action_Entropy": "Action Entropy",
+    "State_Standard_Deviation": "State Standard Deviation",
+    "Action_Standard_Deviation": "Action Standard Deviation",
+    "Action_Entropy": "Action Usage Entropy",
     "Trajectory_Diversity": "Trajectory Diversity",
     "EAS": "Mean Expected Action Stochasticity (EAS)",
     "SACo": "State-Action Coverage (SACo)",
@@ -141,7 +142,8 @@ FEATURE_LABELS = {
 # panel).
 COVERAGE_FEATURES = [
     "State_Coverage_Entropy",
-    "State_Spread",
+    "State_Standard_Deviation",
+    "Action_Standard_Deviation",
     "Action_Entropy",
     "Trajectory_Diversity",
     "EAS",
@@ -294,11 +296,11 @@ def _load_all_dataset_profiles(profiles_dir: str = default_paths.DATASET_PROFILE
                 "dataset": dataset_name,
                 "env_family": env_family,
                 "tier": tier,
-                "State_Coverage_Entropy": coverage.get("State Entropy", np.nan),
-                "State_Spread": coverage.get("State Spread", np.nan),
+                "State_Coverage_Entropy": coverage.get("State Cluster Entropy", np.nan),
+                "State_Standard_Deviation": coverage.get("State Standard Deviation", np.nan),
                 "State_Cluster_Coverage": coverage.get("State Cluster Coverage", np.nan),
-                "Action_Variance": coverage.get("Action Variance", np.nan),
-                "Action_Entropy": coverage.get("Action Entropy", np.nan),
+                "Action_Standard_Deviation": coverage.get("Action Standard Deviation", np.nan),
+                "Action_Entropy": coverage.get("Action Usage Entropy", np.nan),
                 "EAS": coverage.get("EAS", np.nan),
                 "SACo": coverage.get("SACo", np.nan),
                 "Mean_Return": quality.get("Mean Return", np.nan),

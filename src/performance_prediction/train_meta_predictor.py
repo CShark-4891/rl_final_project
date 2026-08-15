@@ -16,7 +16,7 @@ def main():
     # Define our feature inputs (X) and performance targets (y)
     features = [
         "State_Coverage_Entropy",
-        "State_Spread",
+        "State_Standard_Deviation",
         "Action_Entropy",
         "Trajectory_Diversity",
         "Reward_Sparsity",

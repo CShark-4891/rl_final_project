@@ -161,9 +161,12 @@ def main():
                     "diversity", profile.get("Diversity", {}))
 
                 # Metric map extractions
-                state_coverage = coverage_data.get("State Entropy", np.nan)
-                state_spread = coverage_data.get("State Spread", np.nan)
-                action_entropy = coverage_data.get("Action Entropy", np.nan)
+                state_coverage = coverage_data.get(
+                    "State Cluster Entropy", np.nan)
+                state_std = coverage_data.get(
+                    "State Standard Deviation", np.nan)
+                action_entropy = coverage_data.get(
+                    "Action Usage Entropy", np.nan)
                 reward_sparsity = quality_data.get("Reward Sparsity", 0.0)
                 traj_diversity = diversity_data.get(
                     "Trajectory Diversity", np.nan)
@@ -175,7 +178,7 @@ def main():
                 rows.append({
                     "Dataset_ID": f"{env_name}_{tier_name}",
                     "State_Coverage_Entropy": state_coverage,
-                    "State_Spread": state_spread,
+                    "State_Standard_Deviation": state_std,
                     "Action_Entropy": action_entropy,
                     "Trajectory_Diversity": traj_diversity,
                     "Reward_Sparsity": reward_sparsity,

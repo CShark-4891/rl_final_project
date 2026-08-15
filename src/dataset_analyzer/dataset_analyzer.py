@@ -138,25 +138,58 @@ def dataset_family(env_name):
     return env_name.split("-", 1)[0]
 
 
-def compute_family_saco_bounds(env_names):
-    """Pool state/action bounds across all sibling dataset variants so SACo
-    discretization uses a shared range instead of each dataset's own min/max."""
-    all_states, all_actions = [], []
+def compute_family_pooled_stats(env_names):
+    """Pool cross-variant reference statistics across all sibling dataset
+    variants of an environment family (e.g. every hopper-*-v0 dataset), so
+    coverage/diversity metrics use a shared reference instead of each dataset
+    normalizing to its own distribution:
+
+    - `saco_bounds` / `action_bounds`: per-dimension (min, max) for
+      compute_relative_state_action_coverage and the action-entropy
+      histograms in compute_state_coverage.
+    - `state_scaling_stats`: per-dimension (mean, std) for the state
+      clustering in compute_state_coverage.
+    - `trajectory_scaling_stats`: per-dimension (mean, std) for the
+      trajectory clustering in compute_trajectory_diversity.
+
+    Without pooling, a narrow dataset (e.g. expert) gets rescaled/rebinned to
+    fill the same range as a wide one (e.g. random), making it look just as
+    covering/diverse even though it explores far less of the space.
+    """
+    all_states, all_actions, all_traj_features = [], [], []
     for env_name in env_names:
         episodes = load_episodes(env_name)
-        all_states.append(np.concatenate(
-            [episode["observations"] for episode in episodes]))
+        states = np.concatenate(
+            [episode["observations"] for episode in episodes])
         actions = np.concatenate(
             [episode["actions"] for episode in episodes])
         if actions.ndim == 1:
             actions = actions.reshape(-1, 1)
+
+        all_states.append(states)
         all_actions.append(actions)
+        all_traj_features.append(
+            ProfileFeatureComputer.compute_trajectory_features(episodes))
 
-    return ProfileFeatureComputer.compute_state_action_bounds(
-        np.concatenate(all_states), np.concatenate(all_actions))
+    pooled_states = np.concatenate(all_states)
+    pooled_actions = np.concatenate(all_actions)
+    pooled_traj_features = np.concatenate(all_traj_features)
+
+    state_dim = pooled_states.shape[1]
+    min_vals, max_vals = ProfileFeatureComputer.compute_state_action_bounds(
+        pooled_states, pooled_actions)
+
+    return {
+        "saco_bounds": (min_vals, max_vals),
+        "action_bounds": (min_vals[state_dim:], max_vals[state_dim:]),
+        "state_scaling_stats": ProfileFeatureComputer.compute_scaling_stats(pooled_states),
+        "trajectory_scaling_stats": ProfileFeatureComputer.compute_scaling_stats(pooled_traj_features),
+    }
 
 
-def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bounds=None, output_dir=default_paths.DATASET_PROFILES_DIR):
+def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bounds=None,
+                     state_scaling_stats=None, action_bounds=None, trajectory_scaling_stats=None,
+                     output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
     episodes = load_episodes(env_name)
@@ -215,8 +248,9 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
     reward_sparcity = float(np.mean(rewards == 0))
 
     # State Coverage
-    state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy = ProfileFeatureComputer.compute_state_coverage(
-        states, actions, n_state_clusters)
+    state_std, state_cluster_coverage, state_cluster_entropy, action_std, action_usage_entropy = ProfileFeatureComputer.compute_state_coverage(
+        states, actions, n_state_clusters,
+        state_scaling_stats=state_scaling_stats, action_bounds=action_bounds)
 
     # mean Estimated Action Stochasticity EAS and normalized Expected Return Index ERI as in Swazinna et al
     if CALCULATE_EAS:
@@ -233,7 +267,7 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
 
     # trajectory diversity
     trajectory_diversity = ProfileFeatureComputer.compute_trajectory_diversity(
-        episodes, n_traj_clusters)
+        episodes, n_traj_clusters, trajectory_scaling_stats=trajectory_scaling_stats)
 
     # state action coverage inspired by Schweighofer et al, but without replay normalisation but with continous state and action space quantization
     saco = ProfileFeatureComputer.compute_relative_state_action_coverage(
@@ -252,11 +286,11 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
         },
 
         "Coverage": {
-            "State Spread": state_spread,
+            "State Standard Deviation": state_std,
             "State Cluster Coverage": state_cluster_coverage,
-            "State Entropy": state_entropy_coverage,
-            "Action Variance": action_variance,
-            "Action Entropy": action_entropy,
+            "State Cluster Entropy": state_cluster_entropy,
+            "Action Standard Deviation": action_std,
+            "Action Usage Entropy": action_usage_entropy,
             "EAS": eas,  # Swizanna et al
             "SACo": saco  # ~ Schweighofer et al
         },
@@ -349,18 +383,24 @@ if __name__ == "__main__":
         for family, members in families.items():
             try:
                 print(
-                    f"[+] Pooling SACo bounds for '{family}' ({len(members)} variants)")
-                saco_bounds = compute_family_saco_bounds(members)
+                    f"[+] Pooling family stats for '{family}' ({len(members)} variants)")
+                family_stats = compute_family_pooled_stats(members)
             except Exception as e:
                 print(
-                    f"Could not pool SACo bounds for '{family}', falling back to per-dataset bounds; {e}")
-                saco_bounds = None
+                    f"Could not pool family stats for '{family}', falling back to per-dataset stats; {e}")
+                family_stats = {}
 
             for dataset in members:
                 try:
                     print(f"[+] Analyzing {dataset}")
                     profile = analyze_dataset(
-                        dataset, output_dir=output_dir, saco_bounds=saco_bounds)
+                        dataset, output_dir=output_dir,
+                        saco_bounds=family_stats.get("saco_bounds"),
+                        state_scaling_stats=family_stats.get(
+                            "state_scaling_stats"),
+                        action_bounds=family_stats.get("action_bounds"),
+                        trajectory_scaling_stats=family_stats.get(
+                            "trajectory_scaling_stats"))
                     # break
                     print(json.dumps(profile, indent=4))
                     save_profile(profile, output_dir=output_dir)

@@ -2,7 +2,6 @@ import numpy as np
 import torch
 
 from sklearn.cluster import MiniBatchKMeans
-from sklearn.preprocessing import StandardScaler
 from scipy.stats import entropy
 
 PRINT_VERBOSE = True
@@ -10,7 +9,7 @@ PRINT_VERBOSE = True
 
 class ProfileFeatureComputer:
 
-    def calculate_entropy(values, bins=50, value_range=None):
+    def _calculate_entropy(values, bins=50, value_range=None):
         histogram, _ = np.histogram(
             values, bins=bins, range=value_range, density=True)
         histogram = histogram[histogram > 0]
@@ -20,7 +19,7 @@ class ProfileFeatureComputer:
 
         return float(entropy(histogram))
 
-    def normalized_cluster_entropy(labels, n_clusters):
+    def _normalized_cluster_entropy(labels, n_clusters):
         """Entropy of the cluster occupancy distribution, normalized to [0, 1]."""
         if n_clusters <= 1:
             return 0.0
@@ -206,8 +205,15 @@ class ProfileFeatureComputer:
 
         return float(predicted_sigma.mean())
 
-    def compute_trajectory_diversity(episodes, n_traj_clusters) -> float:
-        # Metric 3: Trajectory diversity
+    def compute_trajectory_features(episodes) -> np.ndarray:
+        """Per-episode behavior descriptor: mean/std of observations, mean/std
+        of actions, return, and episode length. One row per episode.
+
+        Intended to be pooled across all dataset variants of the same
+        environment (see compute_scaling_stats) and passed as
+        `trajectory_scaling_stats` to compute_trajectory_diversity, so
+        clustering isn't re-centered per dataset.
+        """
         trajectory_features = []
 
         for episode in episodes:
@@ -223,9 +229,45 @@ class ProfileFeatureComputer:
                     [np.sum(episode["rewards"]), len(episode["rewards"])]]
             ))
 
-        trajectory_features = np.array(trajectory_features)
-        scaler = StandardScaler()
-        scaled_features = scaler.fit_transform(trajectory_features)
+        return np.array(trajectory_features)
+
+    def compute_scaling_stats(data):
+        """Per-dimension (mean, std) of `data`, for use with _standardize().
+
+        Pool across all dataset variants of the same environment (e.g. by
+        concatenating their states, or their compute_trajectory_features
+        output, before calling this) so the resulting stats can be shared
+        across variants instead of each one standardizing to its own
+        mean/std. Without pooling, a dataset confined to a narrow region of
+        state/behavior space gets rescaled to the same unit-variance spread
+        as a dataset that explores widely, which defeats the point of a
+        coverage/diversity metric applied by compute_state_coverage /
+        compute_trajectory_diversity.
+        """
+        return np.mean(data, axis=0), np.std(data, axis=0)
+
+    def _standardize(data, scaling_stats=None):
+        """Z-score `data` per dimension using `scaling_stats` (mean, std), or
+        data's own mean/std if `scaling_stats` is omitted (only meaningful
+        when scaling a single dataset in isolation, see compute_scaling_stats)."""
+        if scaling_stats is None:
+            mean, std = ProfileFeatureComputer.compute_scaling_stats(data)
+        else:
+            mean, std = scaling_stats
+
+        std = np.where(std == 0, 1.0, std)  # leave constant dims unscaled
+        return (data - mean) / std
+
+    def compute_trajectory_diversity(episodes, n_traj_clusters, trajectory_scaling_stats=None) -> float:
+        # Metric 3: Trajectory diversity
+        trajectory_features = ProfileFeatureComputer.compute_trajectory_features(
+            episodes)
+
+        # Scale before clustering so high-variance features don't dominate.
+        # See compute_scaling_stats for why `trajectory_scaling_stats` should
+        # be pooled across sibling dataset variants.
+        scaled_features = ProfileFeatureComputer._standardize(
+            trajectory_features, trajectory_scaling_stats)
 
         # Run K-Means on scaled features
         trajectory_model = MiniBatchKMeans(
@@ -235,18 +277,20 @@ class ProfileFeatureComputer:
         )
         traj_labels = trajectory_model.fit_predict(scaled_features)
 
-        trajectory_diversity = ProfileFeatureComputer.normalized_cluster_entropy(
+        trajectory_diversity = ProfileFeatureComputer._normalized_cluster_entropy(
             traj_labels, n_traj_clusters)
 
         return trajectory_diversity
 
-    def compute_state_coverage(states, actions, n_state_clusters) -> tuple:
-        state_spread = float(np.mean(np.std(states, axis=0)))
+    def compute_state_coverage(states, actions, n_state_clusters, state_scaling_stats=None, action_bounds=None) -> tuple:
+        state_std = float(np.mean(np.std(states, axis=0)))
 
         # Scale states before clustering so high-variance dimensions don't
-        # dominate the cluster assignment
-        state_scaler = StandardScaler()
-        scaled_states = state_scaler.fit_transform(states)
+        # dominate the cluster assignment. See compute_scaling_stats for why
+        # `state_scaling_stats` should be pooled across sibling dataset
+        # variants rather than left to fit each dataset's own mean/std.
+        scaled_states = ProfileFeatureComputer._standardize(
+            states, state_scaling_stats)
 
         state_model = MiniBatchKMeans(
             n_clusters=n_state_clusters,
@@ -257,13 +301,26 @@ class ProfileFeatureComputer:
 
         state_cluster_coverage = float(
             len(np.unique(state_labels)) / n_state_clusters)
-        state_entropy_coverage = ProfileFeatureComputer.normalized_cluster_entropy(
+        # Entropy of the cluster-occupancy distribution from the same
+        # state clustering used for state_cluster_coverage above.
+        state_cluster_entropy = ProfileFeatureComputer._normalized_cluster_entropy(
             state_labels, n_state_clusters)
 
-        # Metric 1.2: Action variance and entropy -> Action Coverage
-        action_variance = float(np.mean(np.var(actions, axis=0)))
-        action_entropy = float(np.mean([
-            ProfileFeatureComputer.calculate_entropy(actions[:, i]) for i in range(actions.shape[1])
+        # Metric 1.2: Action standard deviation and per-dimension usage
+        # entropy. Unlike state_cluster_entropy this is not clustering-based:
+        # it's the mean Shannon entropy of each action dimension's own value
+        # histogram, i.e. how uniformly that actuator is used across its
+        # observed range. `action_bounds`, if given, should be a pooled
+        # per-dimension (min, max) across sibling dataset variants (see
+        # compute_state_action_bounds) so every variant's histogram spans the
+        # same range instead of stretching to its own min/max.
+        action_std = float(np.mean(np.std(actions, axis=0)))
+        action_usage_entropy = float(np.mean([
+            ProfileFeatureComputer._calculate_entropy(
+                actions[:, dim],
+                value_range=None if action_bounds is None else (
+                    action_bounds[0][dim], action_bounds[1][dim])
+            ) for dim in range(actions.shape[1])
         ]))
 
-        return state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy
+        return state_std, state_cluster_coverage, state_cluster_entropy, action_std, action_usage_entropy
