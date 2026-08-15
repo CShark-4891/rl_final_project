@@ -11,7 +11,8 @@
         "State Entropy": 0.8655808697462886,
         "Action Variance": 0.5861822962760925,
         "Action Entropy": 3.4508648633505365,
-        "EAS": 0.0
+        "EAS": 0.0,
+        "SACo": 0.879393
     },
     "Quality": {
         "Mean Return": 16242.92451511629,
@@ -20,7 +21,8 @@
         "Max Return": 16584.931906529895,
         "Median Return": 16409.5686613398,
         "Reward Sparsity": 0.0,
-        "ERI": 0.02095360161884883
+        "ERI": 0.02095360161884883,
+        "TQ": 0.9794764408631065
     },
     "Diversity": {
         "Trajectory Diversity": 0.9123823995115531
