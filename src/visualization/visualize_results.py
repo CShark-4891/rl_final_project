@@ -1216,11 +1216,17 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
         if not groups:
             continue
 
+        # Column widths proportional to each panel's bar-category count, so
+        # a single-feature panel (META_RATIO_FEATURES) doesn't get stretched
+        # to the same width as the five-feature RADAR_METRICS panel — every
+        # bar slot ends up roughly the same width across panels.
+        panel_feature_counts = [len(RADAR_METRICS), len(
+            META_COUNT_FEATURES), len(META_RATIO_FEATURES)]
         fig, axes = plt.subplots(
             len(groups), 3,
-            figsize=(max(13.0, 1.6 * len(RADAR_METRICS) + 1.6 * len(META_COUNT_FEATURES)
-                     + 1.6 * len(META_RATIO_FEATURES)), 3.0 * len(groups)),
+            figsize=(max(13.0, 1.6 * sum(panel_feature_counts)), 3.0 * len(groups)),
             squeeze=False,
+            gridspec_kw={"width_ratios": panel_feature_counts},
         )
 
         for row_idx, group in enumerate(groups):
