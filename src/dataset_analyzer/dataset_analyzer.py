@@ -269,8 +269,37 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
 
 
 if __name__ == "__main__":
-    # Updated target targets matching standard modern d4rl profiles
-    d3rlpy_datasets = [
+    
+    # minari profiles
+    minari_datasets = [
+        # --- 1. Walker2d Suite ---
+        "mujoco/walker2d/simple-v0",
+        "mujoco/walker2d/medium-v0",
+        "mujoco/walker2d/expert-v0",
+
+        # --- 2. HalfCheetah Suite ---
+        "mujoco/halfcheetah/simple-v0",
+        "mujoco/halfcheetah/medium-v0",
+        "mujoco/halfcheetah/expert-v0",
+
+        # --- 3. Hopper Suite ---
+        "mujoco/hopper/simple-v0",
+        "mujoco/hopper/medium-v0",
+        "mujoco/hopper/expert-v0",
+        "mujoco/hopper/medium-replay-v0",
+
+        # --- 4. Ant Suite ---
+        "mujoco/ant/simple-v0",
+        "mujoco/ant/medium-v0",
+        "mujoco/ant/expert-v0",
+
+        # # --- 5. Humanoid Suite ---
+        # "mujoco/humanoid/simple-v0",
+        # "mujoco/humanoid/medium-v0",
+        # "mujoco/humanoid/expert-v0"
+    ]
+    # d4rl profiles
+    d4rl_datasets = [
         # Antmaze
         'antmaze-large-play-v0',
         'antmaze-medium-play-v0',
@@ -292,7 +321,7 @@ if __name__ == "__main__":
         'walker2d-random-v0',
     ]
 
-    for dataset in d3rlpy_datasets:
+    for dataset in d4rl_datasets:
         print(f"[+] Analyzing {dataset}")
         profile = analyze_dataset(dataset)
         # break

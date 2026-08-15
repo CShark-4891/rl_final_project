@@ -1,4 +1,6 @@
-DATASET_PROFILES_DIR = "src\\results\\analysis_results\\dataset_profiles_d4rl"
+DATASET_PROFILES_DIR = "src\\results\\dataset_profiles"
 POLICY_RESULTS_DIR = "src\\results\\policy_results"
-PIPELINE_RESULT_DIR = POLICY_RESULTS_DIR + "\\self_trained_cql_runs"
+PIPELINE_RESULT_DIR = POLICY_RESULTS_DIR + "\\self_trained"
+PAPER_RESULTS_DIR = POLICY_RESULTS_DIR + "\\d3rlpy_paper"
 DEFAULT_CONFIG_PATH = "src\\configs\\cql_default.yaml"
+DEFAULT_FIGURE_OUTPUT_DIR = "src\\results\\figures"
