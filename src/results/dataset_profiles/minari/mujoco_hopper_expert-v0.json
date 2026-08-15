@@ -20,7 +20,7 @@
         "Max Return": 4376.326745837254,
         "Median Return": 4139.3407504108945,
         "Reward Sparsity": 0.0,
-        "ERI": -0.11848364460630093
+        "ERI": 0.13440890107295203
     },
     "Diversity": {
         "Trajectory Diversity": 0.9356745147069156
