@@ -11,7 +11,7 @@ class OfflineRLMetaPredictor:
     def __init__(self):
         self.features = [
             "State_Coverage_Entropy",
-            "State_Spread",
+            "State_Standard_Deviation",
             "Action_Entropy",
             "Trajectory_Diversity"
         ]
@@ -46,9 +46,9 @@ class OfflineRLMetaPredictor:
         diversity = profile.get("Diversity", {})
 
         return pd.DataFrame([{
-            "State_Coverage_Entropy": coverage.get("State Entropy", 0.0),
-            "State_Spread": coverage.get("State Spread", 0.0),
-            "Action_Entropy": coverage.get("Action Entropy", 0.0),
+            "State_Coverage_Entropy": coverage.get("State Cluster Entropy", 0.0),
+            "State_Standard_Deviation": coverage.get("State Standard Deviation", 0.0),
+            "Action_Entropy": coverage.get("Action Usage Entropy", 0.0),
             "Trajectory_Diversity": diversity.get("Trajectory Diversity", 0.0)
         }])
 

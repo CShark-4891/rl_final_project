@@ -1,0 +1,30 @@
+{
+    "Dataset": "mujoco/ant/expert-v0",
+    "Size": {
+        "Transitions": 2000000,
+        "Episodes": 2026,
+        "Average Episode Length": 987.1668311944719
+    },
+    "Coverage": {
+        "State Standard Deviation": 0.3151661042464871,
+        "State Cluster Coverage": 1.0,
+        "State Cluster Entropy": 0.772503411732348,
+        "Action Standard Deviation": 0.3500452935695648,
+        "Action Usage Entropy": 3.3746720346076904,
+        "EAS": 0.0,
+        "SACo": 0.998655
+    },
+    "Quality": {
+        "Mean Return": 6672.696062438072,
+        "Std Return": 769.3614393606555,
+        "Min Return": -421.58917016642926,
+        "Max Return": 7049.787763509066,
+        "Median Return": 6784.25889339332,
+        "Reward Sparsity": 0.0,
+        "ERI": 0.053154290912624344,
+        "TQ": 0.9495284865937708
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.6906615018268497
+    }
+}

@@ -6,11 +6,13 @@
         "Average Episode Length": 1000.0
     },
     "Coverage": {
-        "State Spread": 4.451420041477042,
+        "State Standard Deviation": 4.451420041477042,
         "State Cluster Coverage": 1.0,
-        "State Entropy": 0.9014757507820109,
-        "Action Variance": 0.6008797287940979,
-        "Action Entropy": 3.405397564671094
+        "State Cluster Entropy": 0.8559905674139279,
+        "Action Standard Deviation": 0.7729122638702393,
+        "Action Usage Entropy": 3.405398725339729,
+        "EAS": 0.0,
+        "SACo": 0.981457
     },
     "Quality": {
         "Mean Return": 12089.210357562066,
@@ -18,9 +20,11 @@
         "Min Return": 234.62614125796586,
         "Max Return": 14238.905064312376,
         "Median Return": 13301.747750338913,
-        "Reward Sparsity": 0.0
+        "Reward Sparsity": 0.0,
+        "ERI": 0.17781928208451006,
+        "TQ": 0.8464972942511595
     },
     "Diversity": {
-        "Trajectory Diversity": 0.8455000183769915
+        "Trajectory Diversity": 0.6523372029101772
     }
 }

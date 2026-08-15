@@ -1,0 +1,30 @@
+{
+    "Dataset": "mujoco/ant/medium-v0",
+    "Size": {
+        "Transitions": 999116,
+        "Episodes": 1047,
+        "Average Episode Length": 954.2655205348615
+    },
+    "Coverage": {
+        "State Standard Deviation": 0.36126951260372514,
+        "State Cluster Coverage": 1.0,
+        "State Cluster Entropy": 0.7750029541897778,
+        "Action Standard Deviation": 0.45559996366500854,
+        "Action Usage Entropy": 3.6070910659334423,
+        "EAS": 0.0,
+        "SACo": 0.9999989991152178
+    },
+    "Quality": {
+        "Mean Return": 5765.256396217985,
+        "Std Return": 1113.2350407817062,
+        "Min Return": -644.023424227907,
+        "Max Return": 6438.58369073529,
+        "Median Return": 6072.334833566287,
+        "Reward Sparsity": 0.0,
+        "ERI": 0.10505506287451523,
+        "TQ": 0.9049322821966521
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.395365447842978
+    }
+}

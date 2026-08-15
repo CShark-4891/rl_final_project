@@ -37,18 +37,44 @@ For each dataset (loaded via [Minari](https://minari.farama.org/) through
 
 - **Size:** number of transitions, number of episodes, average episode length.
 - **Coverage:** how much of the state/action space the dataset touches:
-  - `State Spread`: mean per-dimension standard deviation of observations.
+  - `State Standard Deviation`: mean per-dimension standard deviation of
+    observations.
   - `State Cluster Coverage`: fraction of K-Means state clusters that are
     actually occupied.
-  - `State Entropy`: normalized entropy of the state-cluster occupancy
-    distribution (0 = all data in one cluster, 1 = uniform across clusters).
-  - `Action Variance` / `Action Entropy`: dispersion and entropy of the
-    action distribution, per action dimension.
+  - `State Cluster Entropy`: normalized entropy of the state-cluster
+    occupancy distribution from that same clustering (0 = all data in one
+    cluster, 1 = uniform across clusters).
+  - `Action Standard Deviation`: mean per-dimension standard deviation of
+    actions — same statistic as `State Standard Deviation`, applied to
+    actions instead of observations.
+  - `Action Usage Entropy`: mean Shannon entropy of each action dimension's
+    own value histogram — how uniformly that actuator is used across its
+    observed range. Unlike `State Cluster Entropy`, this is not
+    clustering-based.
 - **Quality:** statistics over per-episode returns (mean, std, min, max,
   median) and reward sparsity (fraction of zero-reward steps).
 - **Diversity:** `Trajectory Diversity`: normalized entropy of episode
   clusters, where each episode is represented by summary statistics
   (mean/std of states and actions, total return, length).
+
+`State Cluster Coverage`, `State Cluster Entropy`, `Action Usage Entropy`,
+and `Trajectory Diversity` are all computed against a shared reference
+pooled across all sibling variants of the same environment (e.g. every
+hopper-*-v0 dataset), via `compute_family_pooled_stats` in
+`dataset_analyzer.py`. Concretely: the state and trajectory K-Means models
+are fit once on data pooled across the whole family and reused (via
+`.predict()`) for every variant, instead of each dataset fitting its own
+model; the scaling/histogram-range statistics are pooled the same way. This
+mirrors the bounds-pooling `dataset_analyzer.py` already does for SACo, and
+for the same reason: without a shared reference, a narrow dataset (e.g.
+expert) gets rescaled/rebinned/clustered to fill the same range as a wide one
+(e.g. random), making it look just as covering/diverse even though it
+explores far less of the space. In particular, `State Cluster Coverage` used
+to sit at ~1.0 for every dataset (fitting 20 clusters fresh on hundreds of
+thousands of that dataset's own points essentially never leaves a cluster
+empty); scored against the family's shared 20-cluster partition instead, a
+narrow dataset now only occupies the handful of clusters its points actually
+fall into.
 
 Each dataset's profile is written as a JSON file to `dataset_profiles/`.
 See the README in that folder for the exact schema.

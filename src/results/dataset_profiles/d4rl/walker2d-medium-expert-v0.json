@@ -6,7 +6,7 @@
         "Average Episode Length": 288.05286660904636
     },
     "Coverage": {
-        "State Spread": 2.7960920333862305,
+        "State Standard Deviation": 2.7960920333862305,
         "State Cluster Coverage": 1.0,
         "State Entropy": 0.9841729010823043,
         "Action Variance": 0.44823047518730164,

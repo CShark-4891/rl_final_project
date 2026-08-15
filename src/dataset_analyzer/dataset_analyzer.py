@@ -3,13 +3,45 @@ import json
 import numpy as np
 import d3rlpy
 
-from sklearn.cluster import MiniBatchKMeans
-from sklearn.preprocessing import StandardScaler
-from scipy.stats import entropy
-
 from configs import default_paths
 
+from dataset_analyzer.profile_feature_computer import ProfileFeatureComputer
+
+
 PRINT_VERBOSE = True
+PLOT_HISTOGRAMS = False
+
+CALCULATE_EAS = True  # set to true to slow down Alex's PC, what else
+
+
+def load_d4rl_dataset(env_name):
+
+    # Natively load d4rl datasets via d3rlpy ecosystem
+    dataset, _ = d3rlpy.datasets.get_d4rl(env_name)
+
+    return [
+        {
+            "observations": np.array(episode.observations),
+            "actions": np.array(episode.actions),
+            "rewards": np.array(episode.rewards)
+        }
+        for episode in dataset.episodes
+    ]
+
+
+def load_minari_dataset(env_name):
+
+    # Natively load d4rl datasets via d3rlpy ecosystem
+    dataset, _ = d3rlpy.datasets.get_minari(env_name)
+
+    return [
+        {
+            "observations": np.array(episode.observations),
+            "actions": np.array(episode.actions),
+            "rewards": np.array(episode.rewards)
+        }
+        for episode in dataset.episodes
+    ]
 
 
 def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
@@ -23,18 +55,6 @@ def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
         json.dump(profile, file, indent=4)
 
     print(f"[+] Saved: {path}")
-
-
-def calculate_entropy(values, bins=50, value_range=None):
-    histogram, _ = np.histogram(
-        values, bins=bins, range=value_range, density=False)
-    histogram = histogram / histogram.sum()  # Normalize to probabilities
-
-    if len(histogram) == 0 or histogram.sum() == 0:
-        return 0.0
-
-    histogram = histogram[histogram > 0]
-    return float(entropy(histogram))
 
 
 def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
@@ -82,37 +102,117 @@ def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
     print(f"[+] Saved: {save_path}")
 
 
-def normalized_cluster_entropy(labels, n_clusters):
-    """Entropy of the cluster occupancy distribution, normalized to [0, 1]."""
-    if n_clusters <= 1:
-        return 0.0
+def plot_histograms(states, actions, env_name, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
+    # create histogram of state and action distributions and plot them
+    hist_dir = os.path.join(output_dir, "histograms")
+    os.makedirs(hist_dir, exist_ok=True)
+    name = env_name.replace("/", "_")
 
-    counts = np.bincount(labels, minlength=n_clusters)
-    probs = counts / len(labels)
-    probs = probs[probs > 0]
-
-    return float(entropy(probs) / np.log(n_clusters))
-
-
-def load_d4rl_dataset(env_name):
-
-    # Natively load d4rl datasets via d3rlpy ecosystem
-    dataset, _ = d3rlpy.datasets.get_d4rl(env_name)
-
-    return [
-        {
-            "observations": np.array(episode.observations),
-            "actions": np.array(episode.actions),
-            "rewards": np.array(episode.rewards)
-        }
-        for episode in dataset.episodes
-    ]
+    plot_feature_histograms(
+        states, "State Feature",
+        os.path.join(
+            hist_dir, f"state_features\\{name}_state_histograms.png"),
+        n_bins=hist_bins
+    )
+    plot_feature_histograms(
+        actions, "Action Feature",
+        os.path.join(
+            hist_dir, f"action_features\\{name}_action_histograms.png"),
+        n_bins=hist_bins
+    )
 
 
-def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
+def load_episodes(env_name):
+    if "mujoco" in env_name.lower() or "minari" in env_name.lower():
+        return load_minari_dataset(env_name)
+    return load_d4rl_dataset(env_name)
+
+
+def dataset_family(env_name):
+    """Group sibling dataset variants of the same environment (e.g. the quality/size
+    variants of hopper) so SACo discretization bounds can be pooled across them."""
+    if "/" in env_name:
+        # e.g. "mujoco/hopper/medium-v0" -> "mujoco/hopper"
+        return env_name.rsplit("/", 1)[0]
+    # e.g. "hopper-medium-v0" -> "hopper"
+    return env_name.split("-", 1)[0]
+
+
+def compute_family_pooled_stats(env_names, n_clusters=20):
+    """Pool cross-variant reference statistics across all sibling dataset
+    variants of an environment family (e.g. every hopper-*-v0 dataset), so
+    coverage/diversity metrics use a shared reference instead of each dataset
+    normalizing to (or clustering) its own distribution:
+
+    - `saco_bounds` / `action_bounds`: per-dimension (min, max) for
+      compute_relative_state_action_coverage and the action-entropy
+      histograms in compute_state_coverage.
+    - `state_scaling_stats`: per-dimension (mean, std) for the state
+      clustering in compute_state_coverage.
+    - `trajectory_scaling_stats`: per-dimension (mean, std) for the
+      trajectory clustering in compute_trajectory_diversity.
+    - `state_cluster_model` / `trajectory_cluster_model`: MiniBatchKMeans
+      models fit once on the pooled family data, reused (via `.predict()`)
+      for every sibling variant's compute_state_coverage /
+      compute_trajectory_diversity call instead of each variant fitting (and
+      thus fully occupying) its own adaptive partition — see
+      compute_cluster_model.
+
+    Without pooling, a narrow dataset (e.g. expert) gets rescaled/rebinned/
+    clustered to fill the same range as a wide one (e.g. random), making it
+    look just as covering/diverse even though it explores far less of the
+    space.
+    """
+    all_states, all_actions, all_traj_features = [], [], []
+    for env_name in env_names:
+        episodes = load_episodes(env_name)
+        states = np.concatenate(
+            [episode["observations"] for episode in episodes])
+        actions = np.concatenate(
+            [episode["actions"] for episode in episodes])
+        if actions.ndim == 1:
+            actions = actions.reshape(-1, 1)
+
+        all_states.append(states)
+        all_actions.append(actions)
+        all_traj_features.append(
+            ProfileFeatureComputer.compute_trajectory_features(episodes))
+
+    pooled_states = np.concatenate(all_states)
+    pooled_actions = np.concatenate(all_actions)
+    pooled_traj_features = np.concatenate(all_traj_features)
+
+    state_dim = pooled_states.shape[1]
+    min_vals, max_vals = ProfileFeatureComputer.compute_state_action_bounds(
+        pooled_states, pooled_actions)
+
+    state_scaling_stats = ProfileFeatureComputer.compute_scaling_stats(
+        pooled_states)
+    trajectory_scaling_stats = ProfileFeatureComputer.compute_scaling_stats(
+        pooled_traj_features)
+
+    n_state_clusters = min(n_clusters, len(pooled_states))
+    n_traj_clusters = min(n_clusters, len(pooled_traj_features))
+
+    return {
+        "saco_bounds": (min_vals, max_vals),
+        "action_bounds": (min_vals[state_dim:], max_vals[state_dim:]),
+        "state_scaling_stats": state_scaling_stats,
+        "trajectory_scaling_stats": trajectory_scaling_stats,
+        "state_cluster_model": ProfileFeatureComputer.compute_cluster_model(
+            pooled_states, n_state_clusters, state_scaling_stats),
+        "trajectory_cluster_model": ProfileFeatureComputer.compute_cluster_model(
+            pooled_traj_features, n_traj_clusters, trajectory_scaling_stats),
+    }
+
+
+def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bounds=None,
+                     state_scaling_stats=None, action_bounds=None, trajectory_scaling_stats=None,
+                     state_cluster_model=None, trajectory_cluster_model=None,
+                     output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
-    episodes = load_d4rl_dataset(env_name)
+    episodes = load_episodes(env_name)
 
     states = np.concatenate(
         [episode["observations"] for episode in episodes]
@@ -153,95 +253,54 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
         print(
             f"[+] Reward | min = {np.min(rewards):.4f}, max = {np.max(rewards):.4f}, mean = {np.mean(rewards):.4f}, std = {np.std(rewards):.4f}")
 
-    # create histogram of state and action distributions and plot them
-    hist_dir = os.path.join(output_dir, "histograms")
-    os.makedirs(hist_dir, exist_ok=True)
-    name = env_name.replace("/", "_")
+    if PLOT_HISTOGRAMS:
+        plot_histograms(states, actions, env_name,
+                        hist_bins=hist_bins, output_dir=output_dir)
 
-    plot_feature_histograms(
-        states, "State Feature",
-        os.path.join(
-            hist_dir, f"state_features\\{name}_state_histograms.png"),
-        n_bins=hist_bins
+    n_state_clusters = min(n_clusters, len(states))
+    n_traj_clusters = min(n_clusters, len(episodes))
+
+    min_return = float(np.min(returns))
+    max_return = float(np.max(returns))
+    mean_return = float(np.mean(returns))
+    std_return = float(np.std(returns))
+    med_return = float(np.median(returns))
+    # Reward sparsity: fraction of steps with near-zero reward
+    # Use a threshold since continuous Mujoco rewards are rarely exactly 0
+    reward_sparcity = float(np.mean(np.abs(rewards) < 0.1))
+
+    # State Coverage
+    state_std, state_cluster_coverage, state_cluster_entropy, action_std, action_usage_entropy = ProfileFeatureComputer.compute_state_coverage(
+        states, actions, n_state_clusters,
+        state_scaling_stats=state_scaling_stats, action_bounds=action_bounds,
+        state_cluster_model=state_cluster_model)
+
+    # mean Estimated Action Stochasticity (EAS) and normalized Expected Return Index (ERI) as in Swazinna et al.
+    if CALCULATE_EAS:
+        eas = ProfileFeatureComputer.compute_mean_estimated_action_stochasticity(
+            actions, states)
+    else:
+        eas = 0.0
+
+    eri = ProfileFeatureComputer.compute_normalized_ERI(
+        min_return,
+        max_return,
+        mean_return
     )
-    plot_feature_histograms(
-        actions, "Action Feature",
-        os.path.join(
-            hist_dir, f"action_features\\{name}_action_histograms.png"),
-        n_bins=hist_bins
-    )
 
-    n_state_clusters = min(clusters, len(states))
-    n_traj_clusters = min(clusters, len(episodes))
+    # Trajectory diversity (see ProfileFeatureComputer.compute_trajectory_diversity)
+    trajectory_diversity = ProfileFeatureComputer.compute_trajectory_diversity(
+        episodes, n_traj_clusters,
+        trajectory_scaling_stats=trajectory_scaling_stats,
+        trajectory_cluster_model=trajectory_cluster_model)
 
-    # Metric 1.1: State coverage
-    state_spread = float(np.mean(np.std(states, axis=0)))
+    # State-Action Coverage (SACo) inspired by Schweighofer et al.,
+    # with continuous state-action space quantization
+    saco = ProfileFeatureComputer.compute_relative_state_action_coverage(
+        states, actions, saco_bins, bounds=saco_bounds)
 
-    # Scale states before clustering so high-variance dimensions don't
-    # dominate the cluster assignment
-    state_scaler = StandardScaler()
-    scaled_states = state_scaler.fit_transform(states)
-
-    state_model = MiniBatchKMeans(
-        n_clusters=n_state_clusters,
-        random_state=42,
-        n_init="auto"
-    )
-    state_labels = state_model.fit_predict(scaled_states)
-
-    state_cluster_coverage = float(
-        len(np.unique(state_labels)) / n_state_clusters)
-    state_entropy_coverage = normalized_cluster_entropy(
-        state_labels, n_state_clusters)
-
-    # Metric 1.2: Action variance and entropy -> Action Coverage
-    action_variance = float(np.mean(np.var(actions, axis=0)))
-    action_entropy = float(np.mean([
-        calculate_entropy(actions[:, i]) for i in range(actions.shape[1])
-    ]))
-
-    # Metric 2: Dataset quality
-    quality = {
-        "Mean Return": float(np.mean(returns)),
-        "Std Return": float(np.std(returns)),
-        "Min Return": float(np.min(returns)),
-        "Max Return": float(np.max(returns)),
-        "Median Return": float(np.median(returns)),
-        # Reward sparsity: fraction of steps with near-zero reward
-        # Use a threshold since continuous Mujoco rewards are rarely exactly 0
-        "Reward Sparsity": float(np.mean(np.abs(rewards) < 0.1))
-    }
-
-    # Metric 3: Trajectory diversity
-    trajectory_features = []
-
-    for episode in episodes:
-        ep_actions = episode["actions"]
-        if ep_actions.ndim == 1:
-            ep_actions = ep_actions.reshape(-1, 1)
-
-        trajectory_features.append(np.concatenate(
-            [np.mean(episode["observations"], axis=0),
-             np.std(episode["observations"], axis=0),
-             np.mean(ep_actions, axis=0),
-             np.std(ep_actions, axis=0),
-             [np.sum(episode["rewards"]), len(episode["rewards"])]]
-        ))
-
-    trajectory_features = np.array(trajectory_features)
-    scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(trajectory_features)
-
-    # Run K-Means on scaled features
-    trajectory_model = MiniBatchKMeans(
-        n_clusters=n_traj_clusters,
-        random_state=42,
-        n_init="auto"
-    )
-    traj_labels = trajectory_model.fit_predict(scaled_features)
-
-    trajectory_diversity = normalized_cluster_entropy(
-        traj_labels, n_traj_clusters)
+    # Relative Trajectory Quality (TQ) as in Schweighofer et al.
+    tq = ProfileFeatureComputer.compute_TQ(min_return, max_return, mean_return)
 
     return {
         "Dataset": env_name,
@@ -253,14 +312,25 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
         },
 
         "Coverage": {
-            "State Spread": state_spread,
+            "State Standard Deviation": state_std,
             "State Cluster Coverage": state_cluster_coverage,
-            "State Entropy": state_entropy_coverage,
-            "Action Variance": action_variance,
-            "Action Entropy": action_entropy
+            "State Cluster Entropy": state_cluster_entropy,
+            "Action Standard Deviation": action_std,
+            "Action Usage Entropy": action_usage_entropy,
+            "EAS": eas,  # Swizanna et al
+            "SACo": saco  # ~ Schweighofer et al
         },
 
-        "Quality": quality,
+        "Quality": {
+            "Mean Return": mean_return,
+            "Std Return": std_return,
+            "Min Return": min_return,
+            "Max Return": max_return,
+            "Median Return": med_return,
+            "Reward Sparsity": reward_sparcity,
+            "ERI": eri,  # Swizanna et al
+            "TQ": tq  # Schweighofer et al
+        },
 
         "Diversity": {
             "Trajectory Diversity": trajectory_diversity
@@ -269,7 +339,7 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
 
 
 if __name__ == "__main__":
-    
+
     # minari profiles
     minari_datasets = [
         # --- 1. Walker2d Suite ---
@@ -321,9 +391,49 @@ if __name__ == "__main__":
         'walker2d-random-v0',
     ]
 
-    for dataset in d4rl_datasets:
-        print(f"[+] Analyzing {dataset}")
-        profile = analyze_dataset(dataset)
-        # break
-        print(json.dumps(profile, indent=4))
-        save_profile(profile)
+    # Each dataset source gets its own subdirectory under
+    # DATASET_PROFILES_DIR (profiles + histograms), matching the existing
+    # src/results/dataset_profiles/{d4rl,minari}/ layout.
+    dataset_sources = [
+        (minari_datasets, os.path.join(
+            default_paths.DATASET_PROFILES_DIR, "minari")),
+        (d4rl_datasets, os.path.join(
+            default_paths.DATASET_PROFILES_DIR, "d4rl")),
+    ]
+
+    for datasets, output_dir in dataset_sources:
+        families = {}
+        for dataset in datasets:
+            families.setdefault(dataset_family(dataset), []).append(dataset)
+
+        for family, members in families.items():
+            try:
+                print(
+                    f"[+] Pooling family stats for '{family}' ({len(members)} variants)")
+                family_stats = compute_family_pooled_stats(members)
+            except Exception as e:
+                print(
+                    f"Could not pool family stats for '{family}', falling back to per-dataset stats; {e}")
+                family_stats = {}
+
+            for dataset in members:
+                try:
+                    print(f"[+] Analyzing {dataset}")
+                    profile = analyze_dataset(
+                        dataset, output_dir=output_dir,
+                        saco_bounds=family_stats.get("saco_bounds"),
+                        state_scaling_stats=family_stats.get(
+                            "state_scaling_stats"),
+                        action_bounds=family_stats.get("action_bounds"),
+                        trajectory_scaling_stats=family_stats.get(
+                            "trajectory_scaling_stats"),
+                        state_cluster_model=family_stats.get(
+                            "state_cluster_model"),
+                        trajectory_cluster_model=family_stats.get(
+                            "trajectory_cluster_model"))
+                    # break
+                    print(json.dumps(profile, indent=4))
+                    save_profile(profile, output_dir=output_dir)
+                except Exception as e:
+                    print(
+                        f"Could not analyse dataset {dataset}. The pipeline yielded an exception; {e}")
