@@ -211,8 +211,8 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
     max_return = float(np.max(returns))
     mean_return = float(np.mean(returns))
     std_return = float(np.std(returns))
-    med_return = float(np.median(returns)),
-    reward_sparcity = float(np.mean(rewards == 0)),
+    med_return = float(np.median(returns))
+    reward_sparcity = float(np.mean(rewards == 0))
 
     # State Coverage
     state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy = ProfileFeatureComputer.compute_state_coverage(
