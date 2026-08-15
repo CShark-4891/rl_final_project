@@ -108,6 +108,32 @@ def load_d4rl_dataset(env_name):
     ]
 
 
+def load_minari_dataset(env_name):
+
+    # Natively load d4rl datasets via d3rlpy ecosystem
+    dataset, _ = d3rlpy.datasets.get_minari(env_name)
+
+    return [
+        {
+            "observations": np.array(episode.observations),
+            "actions": np.array(episode.actions),
+            "rewards": np.array(episode.rewards)
+        }
+        for episode in dataset.episodes
+    ]
+
+
+def compute_normalized_ERI(min_return, max_return, mean_return) -> float:
+    """Compute the normalized Expected Return Index (ERI) for a dataset as in "Measuring Data Quality for Data Selection in Offline Reinforcement Learning" by Swazinna et al (formula 2)."""
+    if max_return == min_return:
+        return 0.0  # Avoid division by zero; all returns are the same
+
+    if min_return < 0:
+        return float(((mean_return - min_return) - (max_return - min_return)) / (max_return - min_return))
+    else:
+        return float(((mean_return) - (max_return)) / (max_return))
+
+
 def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
@@ -199,16 +225,6 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
         calculate_entropy(actions[:, i]) for i in range(actions.shape[1])
     ]))
 
-    # Metric 2: Dataset quality
-    quality = {
-        "Mean Return": float(np.mean(returns)),
-        "Std Return": float(np.std(returns)),
-        "Min Return": float(np.min(returns)),
-        "Max Return": float(np.max(returns)),
-        "Median Return": float(np.median(returns)),
-        "Reward Sparsity": float(np.mean(rewards == 0))
-    }
-
     # Metric 3: Trajectory diversity
     trajectory_features = []
 
@@ -257,7 +273,19 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
             "Action Entropy": action_entropy
         },
 
-        "Quality": quality,
+        "Quality": {
+            "Mean Return": float(np.mean(returns)),
+            "Std Return": float(np.std(returns)),
+            "Min Return": float(np.min(returns)),
+            "Max Return": float(np.max(returns)),
+            "Median Return": float(np.median(returns)),
+            "Reward Sparsity": float(np.mean(rewards == 0)),
+            "ERI": compute_normalized_ERI(
+                float(np.min(returns)),
+                float(np.max(returns)),
+                float(np.mean(returns))
+            )
+        },
 
         "Diversity": {
             "Trajectory Diversity": trajectory_diversity
@@ -266,7 +294,7 @@ def analyze_dataset(env_name, clusters=20, hist_bins=50, output_dir=default_path
 
 
 if __name__ == "__main__":
-    
+
     # minari profiles
     minari_datasets = [
         # --- 1. Walker2d Suite ---
