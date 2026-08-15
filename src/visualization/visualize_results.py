@@ -110,6 +110,8 @@ META_FEATURES = [
     "Action_Entropy",
     "Trajectory_Diversity",
     "Reward_Sparsity",
+    "EAS",
+    "ERI",
 ]
 
 META_FEATURE_LABELS = {
@@ -118,23 +120,24 @@ META_FEATURE_LABELS = {
     "Action_Entropy": "Action Entropy",
     "Trajectory_Diversity": "Trajectory Diversity",
     "Reward_Sparsity": "Reward Sparsity",
+    "EAS": "Mean Expected Action Stochasticity (EAS)",
+    "ERI": "Expected Relative Return Improvement (ERI)",
 }
 
-# Radar-chart metrics (subset that makes sense on a comparable scale)
-# Exclude Reward_Sparsity because it is constant (0.0) for all MuJoCo datasets.
+# Radar-chart metrics (subset that makes sense on a comparable scale).
+# Exclude Reward_Sparsity because it is constant (0.0) for all MuJoCo
+# datasets, and ERI because its bounded [-1, 0] range would be dwarfed on the
+# shared, non-normalized axis that plot_dataset_source_comparison draws
+# RADAR_METRICS on (the two radar-chart functions themselves are unaffected
+# by scale since they min-max normalize each metric independently).
 RADAR_METRICS = [
     "State_Coverage_Entropy",
     "State_Spread",
     "Action_Entropy",
     "Trajectory_Diversity",
+    "EAS",
 ]
 
-RADAR_LABELS = [
-    "State Coverage\nEntropy",
-    "State Spread",
-    "Action Entropy",
-    "Trajectory\nDiversity",
-]
 
 # Absolute-scale dataset-size/return features, kept in a separate bar panel
 # from RADAR_METRICS in the dataset-source comparison plot: their magnitudes
@@ -147,6 +150,14 @@ META_COUNT_FEATURE_LABELS = {
     "Episodes": "Episodes",
     "Avg_Episode_Length": "Avg. Episode Length",
 }
+
+# Bounded-ratio return-quality features, kept in their own bar panel in the
+# dataset-source comparison plot: ERI's small, negative-leaning [-1, 0]
+# range would be unreadable squeezed onto either the entropy-scale
+# (RADAR_METRICS) or the count-scale (META_COUNT_FEATURES) axis. Labels are
+# looked up from META_FEATURE_LABELS (ERI is already a META_FEATURES entry)
+# rather than duplicated here.
+META_RATIO_FEATURES = ["ERI"]
 
 # D4RL reference baselines for normalizing raw scores (0% = random, 100% = expert).
 # These are used to re-normalize raw scores from pipeline results, ensuring
@@ -277,9 +288,11 @@ def _load_all_dataset_profiles(profiles_dir: str = default_paths.DATASET_PROFILE
                 "State_Cluster_Coverage": coverage.get("State Cluster Coverage", np.nan),
                 "Action_Variance": coverage.get("Action Variance", np.nan),
                 "Action_Entropy": coverage.get("Action Entropy", np.nan),
+                "EAS": coverage.get("EAS", np.nan),
                 "Mean_Return": quality.get("Mean Return", np.nan),
                 "Std_Return": quality.get("Std Return", np.nan),
                 "Reward_Sparsity": quality.get("Reward Sparsity", np.nan),
+                "ERI": quality.get("ERI", np.nan),
                 "Trajectory_Diversity": diversity.get("Trajectory Diversity", np.nan),
                 "Transitions": size_info.get("Transitions", np.nan),
                 "Episodes": size_info.get("Episodes", np.nan),
@@ -430,6 +443,16 @@ def _wrap_label(label: str) -> str:
     return label.replace(" ", "\n")
 
 
+def _usable_features(df: pd.DataFrame, features: list) -> list:
+    """Return the subset of `features` that have at least one non-null value
+    in `df`. A feature that's entirely missing for a data source (e.g.
+    EAS/ERI not yet computed for the D4RL profiles, which predate those
+    fields) degrades to "excluded from this plot" instead of, via a blanket
+    dropna(subset=features), wiping out every row just because one column is
+    always NaN."""
+    return [f for f in features if f in df.columns and df[f].notna().any()]
+
+
 def _save_figure(fig, filename: str, output_dir: str, dpi: int = 150):
     """Save a figure to output_dir/filename with consistent settings."""
     os.makedirs(output_dir, exist_ok=True)
@@ -541,15 +564,17 @@ def plot_metrics_vs_performance(
     algorithm_label: str = "CQL",
     output_filename: str = "metrics_vs_performance.png",
 ):
-    """2x2 scatter subplot: each meta-feature vs. D4RL score with trend line."""
-    df = df_meta.dropna(subset=META_FEATURES +
-                        ["Normalized_Target_Score"]).copy()
-    if df.empty:
+    """Grid of scatter subplots, one per meta-feature vs. D4RL score with trend line."""
+    features = _usable_features(df_meta, META_FEATURES)
+    df = df_meta.dropna(subset=features + ["Normalized_Target_Score"]).copy()
+    if df.empty or not features:
         print("  [!] No meta-registry data for metrics-vs-performance plot.")
         return
 
-    features = META_FEATURES[:4]  # Use first 4 for 2x2 grid
-    fig, axes = plt.subplots(2, 2, figsize=(11, 9))
+    n_cols = 2
+    n_rows = int(np.ceil(len(features) / n_cols))
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(11, 4.5 * n_rows), squeeze=False)
 
     for ax, feat in zip(axes.flat, features):
         x = df[feat]
@@ -567,8 +592,11 @@ def plot_metrics_vs_performance(
                     zorder=3,
                 )
 
-        # Trend line (polynomial degree 1)
-        if len(x) > 2:
+        # Trend line (polynomial degree 1). Skip when x is constant (e.g.
+        # Reward_Sparsity is 0.0 for every MuJoCo dataset) since a
+        # zero-variance x makes the least-squares fit singular and
+        # np.polyfit raises LinAlgError instead of returning a flat line.
+        if len(x) > 2 and x.std() > 0:
             coeffs = np.polyfit(x, y, 1)
             poly = np.poly1d(coeffs)
             x_sorted = np.sort(x)
@@ -578,6 +606,10 @@ def plot_metrics_vs_performance(
         ax.set_xlabel(META_FEATURE_LABELS.get(feat, feat), fontsize=11)
         ax.set_ylabel("D4RL Normalized Score (%)", fontsize=11)
         ax.grid(alpha=0.3)
+
+    # Hide any unused subplot slots when len(features) doesn't fill the grid
+    for empty_ax in axes.flat[len(features):]:
+        empty_ax.axis("off")
 
     # Single legend for the whole figure
     handles, labels = axes[0, 0].get_legend_handles_labels()
@@ -603,9 +635,10 @@ def plot_correlation_heatmap(
     output_filename: str = "correlation_heatmap.png",
 ):
     """Annotated correlation matrix of all numeric meta-features + target."""
-    cols = META_FEATURES + ["Normalized_Target_Score"]
+    features = _usable_features(df_meta, META_FEATURES)
+    cols = features + ["Normalized_Target_Score"]
     df = df_meta[cols].dropna().copy()
-    if df.empty:
+    if df.empty or not features:
         print("  [!] No meta-registry data for correlation heatmap.")
         return
 
@@ -660,13 +693,13 @@ def plot_feature_importance(
     output_filename: str = "feature_importance.png",
 ):
     """Random Forest feature importance as a horizontal bar chart."""
-    df = df_meta.dropna(subset=META_FEATURES +
-                        ["Normalized_Target_Score"]).copy()
-    if df.empty:
+    features = _usable_features(df_meta, META_FEATURES)
+    df = df_meta.dropna(subset=features + ["Normalized_Target_Score"]).copy()
+    if df.empty or not features:
         print("  [!] No meta-registry data for feature importance.")
         return
 
-    X = df[META_FEATURES]
+    X = df[features]
     y = df["Normalized_Target_Score"]
 
     model = RandomForestRegressor(n_estimators=50, random_state=42)
@@ -676,10 +709,10 @@ def plot_feature_importance(
     indices = np.argsort(importances)[::-1]
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(META_FEATURES)))[::-1]
+    colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(features)))[::-1]
 
     bars = ax.barh(
-        range(len(META_FEATURES)),
+        range(len(features)),
         importances[indices],
         color=colors,
         align="center",
@@ -687,9 +720,9 @@ def plot_feature_importance(
         height=0.7,
     )
 
-    ax.set_yticks(range(len(META_FEATURES)))
+    ax.set_yticks(range(len(features)))
     ax.set_yticklabels(
-        [META_FEATURE_LABELS.get(META_FEATURES[i], META_FEATURES[i])
+        [META_FEATURE_LABELS.get(features[i], features[i])
          for i in indices],
         fontsize=11,
     )
@@ -721,13 +754,13 @@ def plot_predicted_vs_actual(
     """Scatter plot: predicted D4RL score vs. actual, using a GBR trained on
     the meta-registry with leave-one-dataset-out cross-validation."""
 
-    df = df_meta.dropna(subset=META_FEATURES +
-                        ["Normalized_Target_Score"]).copy()
-    if len(df) < 3:
+    features = _usable_features(df_meta, META_FEATURES)
+    df = df_meta.dropna(subset=features + ["Normalized_Target_Score"]).copy()
+    if len(df) < 3 or not features:
         print("  [!] Too few data points for predicted-vs-actual plot.")
         return
 
-    X = df[META_FEATURES].values
+    X = df[features].values
     y = df["Normalized_Target_Score"].values
     dataset_ids = df["Dataset_ID"].values
 
@@ -892,15 +925,18 @@ def plot_seed_consistency(
 
 def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
     """Radar chart comparing Expert vs. Simple dataset profiles per environment."""
-    df = df_profiles.dropna(subset=RADAR_METRICS).copy()
-    if df.empty:
+    metrics = _usable_features(df_profiles, RADAR_METRICS)
+    df = df_profiles.dropna(subset=metrics).copy()
+    if df.empty or not metrics:
         print("  [!] No profile data for radar comparison.")
         return
 
     # For each environment, get expert and simple tiers
-    n_metrics = len(RADAR_METRICS)
+    n_metrics = len(metrics)
     angles = np.linspace(0, 2 * np.pi, n_metrics, endpoint=False).tolist()
     angles += angles[:1]  # Close the loop
+    radar_labels = [_wrap_label(META_FEATURE_LABELS.get(m, m))
+                    for m in metrics]
 
     for env in ENV_ORDER:
         env_df = df[df["env_family"] == env]
@@ -913,10 +949,9 @@ def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
         fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={"polar": True})
 
         for label, row in [("Expert", expert.iloc[0]), ("Simple", simple.iloc[0])]:
-            # values = [row[m] for m in RADAR_METRICS]
             # Normalise to [0, 1] using min-max across all profiles for this metric
             values_norm = []
-            for m in RADAR_METRICS:
+            for m in metrics:
                 vmin = df[m].min()
                 vmax = df[m].max()
                 if vmax - vmin > 1e-10:
@@ -931,7 +966,7 @@ def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
                     linewidth=2, label=label, color=color)
 
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(RADAR_LABELS, fontsize=9)
+        ax.set_xticklabels(radar_labels, fontsize=9)
         ax.set_ylim(0, 1.1)
         ax.set_yticks([0.25, 0.5, 0.75, 1.0])
         ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"], fontsize=7)
@@ -950,17 +985,18 @@ def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
 def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
     """One radar chart per environment, with each tier (simple/medium/expert)
     shown as a separate coloured polygon."""
-    df = df_profiles.dropna(subset=RADAR_METRICS).copy()
+    metrics = _usable_features(df_profiles, RADAR_METRICS)
+    df = df_profiles.dropna(subset=metrics).copy()
     df = df[df["env_family"].notna() & df["tier"].notna()]
-    df = df[df["env_family"].apply(lambda x: x is not None)]
-    df = df[df["tier"].apply(lambda x: x is not None)]
-    if df.empty:
+    if df.empty or not metrics:
         print("  [!] No profile data for per-environment radar charts.")
         return
 
-    n_metrics = len(RADAR_METRICS)
+    n_metrics = len(metrics)
     angles = np.linspace(0, 2 * np.pi, n_metrics, endpoint=False).tolist()
     angles += angles[:1]
+    radar_labels = [_wrap_label(META_FEATURE_LABELS.get(m, m))
+                    for m in metrics]
 
     # Tier-specific colours (sequential palette: simple→medium→expert)
     tier_colors = {
@@ -989,10 +1025,9 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
                 continue
 
             for _, row in tier_rows.iterrows():
-                # values = [row[m] for m in RADAR_METRICS]
                 # Normalise using global min-max (across ALL datasets)
                 values_norm = []
-                for m in RADAR_METRICS:
+                for m in metrics:
                     vmin = df[m].min()
                     vmax = df[m].max()
                     if vmax - vmin > 1e-10:
@@ -1009,7 +1044,7 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
                         label=label, color=color)
 
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(RADAR_LABELS, fontsize=10)
+        ax.set_xticklabels(radar_labels, fontsize=10)
         ax.set_ylim(0, 1.1)
         ax.set_yticks([0.25, 0.5, 0.75, 1.0])
         ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"], fontsize=7)
@@ -1123,25 +1158,33 @@ def _draw_grouped_source_bars(
         errors = None
         if error_feature is not None and error_col is not None:
             errors = [row.get(error_col, np.nan) if f ==
-                     error_feature else 0 for f in features]
+                      error_feature else 0 for f in features]
         offset = (i - (n_sources - 1) / 2) * width
         ax.bar(x + offset, values, width, yerr=errors, capsize=3,
-              label=source, color=source_colors[source], error_kw={"linewidth": 1})
+               label=source, color=source_colors[source], error_kw={"linewidth": 1})
 
 
 def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
     """For each environment, draw one figure with one row per
-    difficulty-rank tier group (TIER_GROUP_ORDER). Each row has two grouped
-    bar-chart panels, one bar per dataset source per feature (e.g. d4rl vs
-    minari): the left panel covers the comparable-scale profile-shape
-    features (RADAR_METRICS), the right panel covers the absolute-scale
-    dataset size/return features (META_COUNT_FEATURES, with Mean_Return's
-    error bar drawn from Std_Return) — kept apart because their magnitudes
-    would otherwise dwarf the 0-4-range profile-shape features on a shared
-    axis. Every row gets its own x-tick labels, word-wrapped at each space
-    word-wrapped at each space (not rotated) so multi-word feature names
-    stay compact and legible as plain horizontal text."""
-    df = df_profiles.dropna(subset=RADAR_METRICS).copy()
+    difficulty-rank tier group (TIER_GROUP_ORDER). Each row has three
+    grouped bar-chart panels, one bar per dataset source per feature (e.g.
+    d4rl vs minari): the profile-shape features (RADAR_METRICS), the
+    absolute-scale dataset size/return features (META_COUNT_FEATURES, with
+    Mean_Return's error bar drawn from Std_Return), and the bounded-ratio
+    return-quality features (META_RATIO_FEATURES) — kept apart because their
+    wildly different magnitudes/ranges would otherwise dwarf each other on a
+    shared axis. Every row gets its own x-tick labels, word-wrapped at each
+    space (not rotated) so multi-word feature names stay compact and
+    legible as plain horizontal text.
+
+    Unlike the other profile plots, this one spans every dataset source at
+    once, so a feature missing entirely for one source (e.g. EAS/ERI not yet
+    computed for D4RL) shouldn't get excluded outright — that would hide it
+    for every source, including ones that do have it. Rows are dropped only
+    if ALL of RADAR_METRICS are missing; a source simply gets no bar drawn
+    for whichever individual feature it lacks (see _draw_grouped_source_bars,
+    which already tolerates a NaN value for one feature)."""
+    df = df_profiles.dropna(subset=RADAR_METRICS, how="all").copy()
     if df.empty:
         print("  [!] No profile data for dataset-source comparison.")
         return
@@ -1155,11 +1198,14 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                     for f in RADAR_METRICS]
     count_labels = [_wrap_label(META_COUNT_FEATURE_LABELS.get(f, f))
                     for f in META_COUNT_FEATURES]
+    ratio_labels = [_wrap_label(META_FEATURE_LABELS.get(f, f))
+                    for f in META_RATIO_FEATURES]
 
     n_sources = len(sources)
     width = 0.8 / n_sources
     x_shape = np.arange(len(RADAR_METRICS))
     x_count = np.arange(len(META_COUNT_FEATURES))
+    x_ratio = np.arange(len(META_RATIO_FEATURES))
 
     for env in ENV_ORDER:
         env_df = df[df["env_family"] == env]
@@ -1171,15 +1217,16 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
             continue
 
         fig, axes = plt.subplots(
-            len(groups), 2,
-            figsize=(max(11.0, 1.6 * len(RADAR_METRICS) +
-                     1.6 * len(META_COUNT_FEATURES)), 3.0 * len(groups)),
+            len(groups), 3,
+            figsize=(max(13.0, 1.6 * len(RADAR_METRICS) + 1.6 * len(META_COUNT_FEATURES)
+                     + 1.6 * len(META_RATIO_FEATURES)), 3.0 * len(groups)),
             squeeze=False,
         )
 
         for row_idx, group in enumerate(groups):
             group_df = env_df[env_df["tier_group"] == group]
-            ax_shape, ax_count = axes[row_idx, 0], axes[row_idx, 1]
+            ax_shape, ax_count, ax_ratio = axes[row_idx,
+                                                 0], axes[row_idx, 1], axes[row_idx, 2]
 
             _draw_grouped_source_bars(
                 ax_shape, group_df, sources, source_colors,
@@ -1188,13 +1235,17 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                 ax_count, group_df, sources, source_colors,
                 META_COUNT_FEATURES, x_count, width, n_sources,
                 error_feature="Mean_Return", error_col="Std_Return")
+            _draw_grouped_source_bars(
+                ax_ratio, group_df, sources, source_colors,
+                META_RATIO_FEATURES, x_ratio, width, n_sources)
 
             for ax, x, labels in (
                 (ax_shape, x_shape, shape_labels),
                 (ax_count, x_count, count_labels),
+                (ax_ratio, x_ratio, ratio_labels),
             ):
-                ax.set_title(TIER_GROUP_LABELS.get(group, group),
-                            fontsize=11, loc="left")
+                ax.set_title(TIER_GROUP_LABELS.get(
+                    group, group), fontsize=11, loc="left")
                 ax.grid(axis="y", alpha=0.3)
                 ax.set_xticks(x)
                 ax.set_xticklabels(
