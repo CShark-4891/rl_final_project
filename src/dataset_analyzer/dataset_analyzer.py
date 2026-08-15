@@ -240,7 +240,7 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
         states, actions, saco_bins, bounds=saco_bounds)
 
     # relative trajectory quality as proposed by Schweighofer et al
-    tq = ProfileFeatureComputer.compute_tq(min_return, max_return, mean_return)
+    tq = ProfileFeatureComputer.compute_TQ(min_return, max_return, mean_return)
 
     return {
         "Dataset": env_name,
