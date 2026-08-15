@@ -11,7 +11,7 @@ from dataset_analyzer.profile_feature_computer import ProfileFeatureComputer
 PRINT_VERBOSE = True
 PLOT_HISTOGRAMS = False
 
-CALCULATE_EAS = False
+CALCULATE_EAS = True  # set to true to slow down Alex's PC, what else
 
 
 def load_d4rl_dataset(env_name):
