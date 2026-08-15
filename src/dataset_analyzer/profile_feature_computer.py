@@ -31,6 +31,77 @@ class ProfileFeatureComputer:
 
         return float(entropy(probs) / np.log(n_clusters))
 
+    def compute_TQ(min_return, max_return, mean_return) -> float:
+        """Relative Trajectory Quality (TQ) as in Understanding the Effects of Dataset Characteristics on Ofﬂine Reinforcement Learning by Schweighofer et al"""
+        if max_return == min_return:
+            return 0.0
+
+        return float((mean_return - min_return) / (max_return - min_return))
+
+    def compute_state_action_bounds(states, actions):
+        """Elementwise (min, max) per dimension across a batch of states and actions.
+
+        Intended to be pooled across all dataset variants of the same environment
+        (e.g. every hopper-*-v0 dataset) and passed as `bounds` to
+        compute_relative_state_action_coverage, so the discretization range is
+        shared across variants rather than each dataset rescaling to its own
+        min/max.
+        """
+        combined = np.concatenate(
+            [np.asarray(states), np.asarray(actions)], axis=1)
+
+        return combined.min(axis=0), combined.max(axis=0)
+
+    def compute_relative_state_action_coverage(states, actions, n_bins=10, bounds=None) -> float:
+        """Approximate State-Action Coverage (SACo) as in "Understanding the Effects of
+        Dataset Characteristics on Offline Reinforcement Learning" by Schweighofer et al.
+
+        The original SACo counts exact duplicate (s, a) pairs (via HyperLogLog for
+        efficiency), which only produces meaningful duplicates for discrete or
+        near-deterministic environments. For continuous state-action spaces almost
+        every raw pair is unique, so each dimension is first independently
+        discretized into `n_bins` equal-width bins; a "unique" pair is then a
+        unique combination of per-dimension bin indices. SACo is reported as the
+        fraction of transitions occupying a distinct cell (unique cells / N),
+        i.e. one minus the duplication rate.
+
+        `bounds`, if given, is a (min, max) pair of per-dimension arrays (see
+        compute_state_action_bounds) that fixes the discretization range. This
+        should be pooled across all dataset variants of the same environment:
+        without a shared range, each dataset's bins stretch to fill only its own
+        min/max, so a narrow dataset (e.g. expert) looks just as "covering" as a
+        wide one (e.g. random) even though it explores far less of the space. If
+        omitted, this dataset's own min/max is used instead, which is only
+        meaningful when scoring a single dataset in isolation.
+        """
+        states = np.asarray(states)
+        actions = np.asarray(actions)
+
+        n_transitions = states.shape[0]
+        if n_transitions == 0:
+            return 0.0
+
+        combined = np.concatenate([states, actions], axis=1)
+
+        if bounds is None:
+            min_vals, max_vals = combined.min(axis=0), combined.max(axis=0)
+        else:
+            min_vals, max_vals = bounds
+
+        bin_indices = np.zeros_like(combined, dtype=np.int64)
+        for dim in range(combined.shape[1]):
+            min_val, max_val = min_vals[dim], max_vals[dim]
+            if min_val == max_val:
+                continue  # constant dimension: every sample stays in bin 0
+
+            interior_edges = np.linspace(min_val, max_val, n_bins + 1)[1:-1]
+            bin_indices[:, dim] = np.clip(
+                np.digitize(combined[:, dim], interior_edges), 0, n_bins - 1)
+
+        n_unique_cells = len(np.unique(bin_indices, axis=0))
+
+        return float(n_unique_cells / n_transitions)
+
     def compute_normalized_ERI(min_return, max_return, mean_return) -> float:
         """Compute the normalized Expected Return Index (ERI) for a dataset as in "Measuring Data Quality for Data Selection in Offline Reinforcement Learning" by Swazinna et al (formula 2)."""
         if max_return == min_return:

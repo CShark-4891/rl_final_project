@@ -122,13 +122,44 @@ def plot_histograms(states, actions, env_name, hist_bins=50, output_dir=default_
     )
 
 
-def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
+def load_episodes(env_name):
+    if "mujoco" in env_name.lower() or "minari" in env_name.lower():
+        return load_minari_dataset(env_name)
+    return load_d4rl_dataset(env_name)
+
+
+def dataset_family(env_name):
+    """Group sibling dataset variants of the same environment (e.g. the quality/size
+    variants of hopper) so SACo discretization bounds can be pooled across them."""
+    if "/" in env_name:
+        # e.g. "mujoco/hopper/medium-v0" -> "mujoco/hopper"
+        return env_name.rsplit("/", 1)[0]
+    # e.g. "hopper-medium-v0" -> "hopper"
+    return env_name.split("-", 1)[0]
+
+
+def compute_family_saco_bounds(env_names):
+    """Pool state/action bounds across all sibling dataset variants so SACo
+    discretization uses a shared range instead of each dataset's own min/max."""
+    all_states, all_actions = [], []
+    for env_name in env_names:
+        episodes = load_episodes(env_name)
+        all_states.append(np.concatenate(
+            [episode["observations"] for episode in episodes]))
+        actions = np.concatenate(
+            [episode["actions"] for episode in episodes])
+        if actions.ndim == 1:
+            actions = actions.reshape(-1, 1)
+        all_actions.append(actions)
+
+    return ProfileFeatureComputer.compute_state_action_bounds(
+        np.concatenate(all_states), np.concatenate(all_actions))
+
+
+def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bounds=None, output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
-    if "mujoco" in env_name.lower() or "minari" in env_name.lower():
-        episodes = load_minari_dataset(env_name)
-    else:
-        episodes = load_d4rl_dataset(env_name)
+    episodes = load_episodes(env_name)
 
     states = np.concatenate(
         [episode["observations"] for episode in episodes]
@@ -176,6 +207,13 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
     n_state_clusters = min(n_clusters, len(states))
     n_traj_clusters = min(n_clusters, len(episodes))
 
+    min_return = float(np.min(returns))
+    max_return = float(np.max(returns))
+    mean_return = float(np.mean(returns))
+    std_return = float(np.std(returns))
+    med_return = float(np.median(returns)),
+    reward_sparcity = float(np.mean(rewards == 0)),
+
     # State Coverage
     state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy = ProfileFeatureComputer.compute_state_coverage(
         states, actions, n_state_clusters)
@@ -186,15 +224,23 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
             actions, states)
     else:
         eas = 0.0
+
     eri = ProfileFeatureComputer.compute_normalized_ERI(
-        float(np.min(returns)),
-        float(np.max(returns)),
-        float(np.mean(returns))
+        min_return,
+        max_return,
+        mean_return
     )
 
     # trajectory diversity
     trajectory_diversity = ProfileFeatureComputer.compute_trajectory_diversity(
         episodes, n_traj_clusters)
+
+    # state action coverage inspired by Schweighofer et al, but without replay normalisation but with continous state and action space quantization
+    saco = ProfileFeatureComputer.compute_relative_state_action_coverage(
+        states, actions, saco_bins, bounds=saco_bounds)
+
+    # relative trajectory quality as proposed by Schweighofer et al
+    tq = ProfileFeatureComputer.compute_tq(min_return, max_return, mean_return)
 
     return {
         "Dataset": env_name,
@@ -211,17 +257,19 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
             "State Entropy": state_entropy_coverage,
             "Action Variance": action_variance,
             "Action Entropy": action_entropy,
-            "EAS": eas
+            "EAS": eas,  # Swizanna et al
+            "SACo": saco  # ~ Schweighofer et al
         },
 
         "Quality": {
-            "Mean Return": float(np.mean(returns)),
-            "Std Return": float(np.std(returns)),
-            "Min Return": float(np.min(returns)),
-            "Max Return": float(np.max(returns)),
-            "Median Return": float(np.median(returns)),
-            "Reward Sparsity": float(np.mean(rewards == 0)),
-            "ERI": eri
+            "Mean Return": mean_return,
+            "Std Return": std_return,
+            "Min Return": min_return,
+            "Max Return": max_return,
+            "Median Return": med_return,
+            "Reward Sparsity": reward_sparcity,
+            "ERI": eri,  # Swizanna et al
+            "TQ": tq  # Schweighofer et al
         },
 
         "Diversity": {
@@ -294,12 +342,28 @@ if __name__ == "__main__":
     ]
 
     for datasets, output_dir in dataset_sources:
+        families = {}
         for dataset in datasets:
+            families.setdefault(dataset_family(dataset), []).append(dataset)
+
+        for family, members in families.items():
             try:
-                print(f"[+] Analyzing {dataset}")
-                profile = analyze_dataset(dataset, output_dir=output_dir)
-                # break
-                print(json.dumps(profile, indent=4))
-                save_profile(profile, output_dir=output_dir)
+                print(
+                    f"[+] Pooling SACo bounds for '{family}' ({len(members)} variants)")
+                saco_bounds = compute_family_saco_bounds(members)
             except Exception as e:
-                print(f"Could not analyse dataset {dataset}. The pipeline yielded an exception; {e}")
+                print(
+                    f"Could not pool SACo bounds for '{family}', falling back to per-dataset bounds; {e}")
+                saco_bounds = None
+
+            for dataset in members:
+                try:
+                    print(f"[+] Analyzing {dataset}")
+                    profile = analyze_dataset(
+                        dataset, output_dir=output_dir, saco_bounds=saco_bounds)
+                    # break
+                    print(json.dumps(profile, indent=4))
+                    save_profile(profile, output_dir=output_dir)
+                except Exception as e:
+                    print(
+                        f"Could not analyse dataset {dataset}. The pipeline yielded an exception; {e}")
