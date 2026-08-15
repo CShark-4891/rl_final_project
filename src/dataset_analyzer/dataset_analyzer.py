@@ -3,14 +3,43 @@ import json
 import numpy as np
 import d3rlpy
 
-from sklearn.cluster import MiniBatchKMeans
-from sklearn.preprocessing import StandardScaler
-from scipy.stats import entropy
-
 from configs import default_paths
+
+from dataset_analyzer.profile_feature_computer import ProfileFeatureComputer
+
 
 PRINT_VERBOSE = True
 PLOT_HISTOGRAMS = False
+
+
+def load_d4rl_dataset(env_name):
+
+    # Natively load d4rl datasets via d3rlpy ecosystem
+    dataset, _ = d3rlpy.datasets.get_d4rl(env_name)
+
+    return [
+        {
+            "observations": np.array(episode.observations),
+            "actions": np.array(episode.actions),
+            "rewards": np.array(episode.rewards)
+        }
+        for episode in dataset.episodes
+    ]
+
+
+def load_minari_dataset(env_name):
+
+    # Natively load d4rl datasets via d3rlpy ecosystem
+    dataset, _ = d3rlpy.datasets.get_minari(env_name)
+
+    return [
+        {
+            "observations": np.array(episode.observations),
+            "actions": np.array(episode.actions),
+            "rewards": np.array(episode.rewards)
+        }
+        for episode in dataset.episodes
+    ]
 
 
 def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
@@ -24,17 +53,6 @@ def save_profile(profile, output_dir=default_paths.DATASET_PROFILES_DIR):
         json.dump(profile, file, indent=4)
 
     print(f"[+] Saved: {path}")
-
-
-def calculate_entropy(values, bins=50, value_range=None):
-    histogram, _ = np.histogram(
-        values, bins=bins, range=value_range, density=True)
-    histogram = histogram[histogram > 0]
-
-    if len(histogram) == 0:
-        return 0.0
-
-    return float(entropy(histogram))
 
 
 def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
@@ -80,123 +98,6 @@ def plot_feature_histograms(data, feature_label, save_path, n_bins=50):
     plt.close(fig)
 
     print(f"[+] Saved: {save_path}")
-
-
-def normalized_cluster_entropy(labels, n_clusters):
-    """Entropy of the cluster occupancy distribution, normalized to [0, 1]."""
-    if n_clusters <= 1:
-        return 0.0
-
-    counts = np.bincount(labels, minlength=n_clusters)
-    probs = counts / len(labels)
-    probs = probs[probs > 0]
-
-    return float(entropy(probs) / np.log(n_clusters))
-
-
-def load_d4rl_dataset(env_name):
-
-    # Natively load d4rl datasets via d3rlpy ecosystem
-    dataset, _ = d3rlpy.datasets.get_d4rl(env_name)
-
-    return [
-        {
-            "observations": np.array(episode.observations),
-            "actions": np.array(episode.actions),
-            "rewards": np.array(episode.rewards)
-        }
-        for episode in dataset.episodes
-    ]
-
-
-def load_minari_dataset(env_name):
-
-    # Natively load d4rl datasets via d3rlpy ecosystem
-    dataset, _ = d3rlpy.datasets.get_minari(env_name)
-
-    return [
-        {
-            "observations": np.array(episode.observations),
-            "actions": np.array(episode.actions),
-            "rewards": np.array(episode.rewards)
-        }
-        for episode in dataset.episodes
-    ]
-
-
-def compute_normalized_ERI(min_return, max_return, mean_return) -> float:
-    """Compute the normalized Expected Return Index (ERI) for a dataset as in "Measuring Data Quality for Data Selection in Offline Reinforcement Learning" by Swazinna et al (formula 2)."""
-    if max_return == min_return:
-        return 0.0  # Avoid division by zero; all returns are the same
-
-    if min_return < 0:
-        return float(((mean_return - min_return) - (max_return - min_return)) / (max_return - min_return))
-    else:
-        return float(((mean_return) - (max_return)) / (max_return))
-
-
-def compute_trajectory_diversity(episodes, n_traj_clusters) -> float:
-    # Metric 3: Trajectory diversity
-    trajectory_features = []
-
-    for episode in episodes:
-        ep_actions = episode["actions"]
-        if ep_actions.ndim == 1:
-            ep_actions = ep_actions.reshape(-1, 1)
-
-        trajectory_features.append(np.concatenate(
-            [np.mean(episode["observations"], axis=0),
-                np.std(episode["observations"], axis=0),
-                np.mean(ep_actions, axis=0),
-                np.std(ep_actions, axis=0),
-                [np.sum(episode["rewards"]), len(episode["rewards"])]]
-        ))
-
-    trajectory_features = np.array(trajectory_features)
-    scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(trajectory_features)
-
-    # Run K-Means on scaled features
-    trajectory_model = MiniBatchKMeans(
-        n_clusters=n_traj_clusters,
-        random_state=42,
-        n_init="auto"
-    )
-    traj_labels = trajectory_model.fit_predict(scaled_features)
-
-    trajectory_diversity = normalized_cluster_entropy(
-        traj_labels, n_traj_clusters)
-
-    return trajectory_diversity
-
-
-def compute_state_coverage(states, actions, n_state_clusters) -> tuple:
-    state_spread = float(np.mean(np.std(states, axis=0)))
-
-    # Scale states before clustering so high-variance dimensions don't
-    # dominate the cluster assignment
-    state_scaler = StandardScaler()
-    scaled_states = state_scaler.fit_transform(states)
-
-    state_model = MiniBatchKMeans(
-        n_clusters=n_state_clusters,
-        random_state=42,
-        n_init="auto"
-    )
-    state_labels = state_model.fit_predict(scaled_states)
-
-    state_cluster_coverage = float(
-        len(np.unique(state_labels)) / n_state_clusters)
-    state_entropy_coverage = normalized_cluster_entropy(
-        state_labels, n_state_clusters)
-
-    # Metric 1.2: Action variance and entropy -> Action Coverage
-    action_variance = float(np.mean(np.var(actions, axis=0)))
-    action_entropy = float(np.mean([
-        calculate_entropy(actions[:, i]) for i in range(actions.shape[1])
-    ]))
-
-    return state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy
 
 
 def plot_histograms(states, actions, env_name, hist_bins=50, output_dir=default_paths.DATASET_PROFILES_DIR):
@@ -267,14 +168,28 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
             f"[+] Reward | min = {np.min(rewards):.4f}, max = {np.max(rewards):.4f}, mean = {np.mean(rewards):.4f}, std = {np.std(rewards):.4f}")
 
     if PLOT_HISTOGRAMS:
-        plot_histograms(states, actions, env_name, hist_bins=hist_bins, output_dir=output_dir)
+        plot_histograms(states, actions, env_name,
+                        hist_bins=hist_bins, output_dir=output_dir)
 
     n_state_clusters = min(n_clusters, len(states))
     n_traj_clusters = min(n_clusters, len(episodes))
 
-    # Metric 1.1: State coverage
-    state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy = compute_state_coverage(
+    # State Coverage
+    state_spread, state_cluster_coverage, state_entropy_coverage, action_variance, action_entropy = ProfileFeatureComputer.compute_state_coverage(
         states, actions, n_state_clusters)
+
+    # mean Estimated Action Stochasticity EAS and normalized Expected Return Index ERI as in Swazinna et al
+    eas = ProfileFeatureComputer.compute_mean_estimated_action_stochasticity(
+        actions, states)
+    eri = ProfileFeatureComputer.compute_normalized_ERI(
+        float(np.min(returns)),
+        float(np.max(returns)),
+        float(np.mean(returns))
+    )
+
+    # trajectory diversity
+    trajectory_diversity = ProfileFeatureComputer.compute_trajectory_diversity(
+        episodes, n_traj_clusters)
 
     return {
         "Dataset": env_name,
@@ -290,7 +205,8 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
             "State Cluster Coverage": state_cluster_coverage,
             "State Entropy": state_entropy_coverage,
             "Action Variance": action_variance,
-            "Action Entropy": action_entropy
+            "Action Entropy": action_entropy,
+            "EAS": eas
         },
 
         "Quality": {
@@ -300,15 +216,11 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, output_dir=default_pa
             "Max Return": float(np.max(returns)),
             "Median Return": float(np.median(returns)),
             "Reward Sparsity": float(np.mean(rewards == 0)),
-            "ERI": compute_normalized_ERI(
-                float(np.min(returns)),
-                float(np.max(returns)),
-                float(np.mean(returns))
-            )
+            "ERI": eri
         },
 
         "Diversity": {
-            "Trajectory Diversity": compute_trajectory_diversity(episodes, n_traj_clusters)
+            "Trajectory Diversity": trajectory_diversity
         }
     }
 
