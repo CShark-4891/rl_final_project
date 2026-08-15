@@ -57,27 +57,27 @@ For each dataset (loaded via [Minari](https://minari.farama.org/) through
   clusters, where each episode is represented by summary statistics
   (mean/std of states and actions, total return, length).
 
-`State Cluster Entropy`, `Action Usage Entropy`, and `Trajectory Diversity`
-are computed with clustering/histogram statistics (mean, std, or bin range)
+`State Cluster Coverage`, `State Cluster Entropy`, `Action Usage Entropy`,
+and `Trajectory Diversity` are all computed against a shared reference
 pooled across all sibling variants of the same environment (e.g. every
 hopper-*-v0 dataset), via `compute_family_pooled_stats` in
-`dataset_analyzer.py`. This mirrors the bounds-pooling `dataset_analyzer.py`
-already does for SACo, and for the same reason: without a shared reference, a
-narrow dataset (e.g. expert) gets rescaled/rebinned to fill the same range as
-a wide one (e.g. random), making it look just as covering/diverse even though
-it explores far less of the space. `State Cluster Coverage` still fits its
-K-Means model per dataset (not yet pooled) — see the caveat below.
+`dataset_analyzer.py`. Concretely: the state and trajectory K-Means models
+are fit once on data pooled across the whole family and reused (via
+`.predict()`) for every variant, instead of each dataset fitting its own
+model; the scaling/histogram-range statistics are pooled the same way. This
+mirrors the bounds-pooling `dataset_analyzer.py` already does for SACo, and
+for the same reason: without a shared reference, a narrow dataset (e.g.
+expert) gets rescaled/rebinned/clustered to fill the same range as a wide one
+(e.g. random), making it look just as covering/diverse even though it
+explores far less of the space. In particular, `State Cluster Coverage` used
+to sit at ~1.0 for every dataset (fitting 20 clusters fresh on hundreds of
+thousands of that dataset's own points essentially never leaves a cluster
+empty); scored against the family's shared 20-cluster partition instead, a
+narrow dataset now only occupies the handful of clusters its points actually
+fall into.
 
 Each dataset's profile is written as a JSON file to `dataset_profiles/`.
 See the README in that folder for the exact schema.
-
-**Known caveat:** `State Cluster Coverage` (fraction of the 20 K-Means state
-clusters occupied) is currently ~1.0 for every dataset regardless of how
-narrow or wide its state coverage actually is, since with hundreds of
-thousands of transitions and only 20 clusters, K-Means essentially never
-leaves a cluster empty. Reworking this metric (e.g. clustering on pooled
-family data with a fixed reference model, or thresholding on point density
-rather than mere occupancy) is a follow-up.
 
 ## Data Sets
 

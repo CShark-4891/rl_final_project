@@ -258,7 +258,31 @@ class ProfileFeatureComputer:
         std = np.where(std == 0, 1.0, std)  # leave constant dims unscaled
         return (data - mean) / std
 
-    def compute_trajectory_diversity(episodes, n_traj_clusters, trajectory_scaling_stats=None) -> float:
+    def compute_cluster_model(data, n_clusters, scaling_stats=None):
+        """Fit a MiniBatchKMeans with `n_clusters` clusters on standardized `data`.
+
+        Fit once on data pooled across all dataset variants of the same
+        environment (e.g. every hopper-*-v0 dataset's states, or their
+        compute_trajectory_features output) and reuse the returned model via
+        `.predict()` for every variant — pass it as `state_cluster_model` /
+        `trajectory_cluster_model` to compute_state_coverage /
+        compute_trajectory_diversity — so every variant is scored against the
+        same fixed partition instead of each one fitting (and thus fully
+        occupying) its own adaptive one. Without this, state_cluster_coverage
+        sits at ~1.0 for every dataset regardless of how much of the space it
+        actually covers, since a fresh model fit on N >> n_clusters points
+        essentially never leaves a cluster empty.
+
+        `scaling_stats` should be the same (ideally also pooled) stats passed
+        to those functions for this data; see compute_scaling_stats.
+        """
+        scaled_data = ProfileFeatureComputer._standardize(data, scaling_stats)
+        model = MiniBatchKMeans(n_clusters=n_clusters,
+                                 random_state=42, n_init="auto")
+        model.fit(scaled_data)
+        return model
+
+    def compute_trajectory_diversity(episodes, n_traj_clusters, trajectory_scaling_stats=None, trajectory_cluster_model=None) -> float:
         # Metric 3: Trajectory diversity
         trajectory_features = ProfileFeatureComputer.compute_trajectory_features(
             episodes)
@@ -269,20 +293,22 @@ class ProfileFeatureComputer:
         scaled_features = ProfileFeatureComputer._standardize(
             trajectory_features, trajectory_scaling_stats)
 
-        # Run K-Means on scaled features
-        trajectory_model = MiniBatchKMeans(
-            n_clusters=n_traj_clusters,
-            random_state=42,
-            n_init="auto"
-        )
-        traj_labels = trajectory_model.fit_predict(scaled_features)
+        # `trajectory_cluster_model`, if given, should be fit once on pooled
+        # family data (see compute_cluster_model) and reused here instead of
+        # fitting a fresh model per dataset.
+        if trajectory_cluster_model is None:
+            trajectory_cluster_model = ProfileFeatureComputer.compute_cluster_model(
+                trajectory_features, n_traj_clusters, trajectory_scaling_stats)
+
+        traj_labels = trajectory_cluster_model.predict(scaled_features)
+        n_traj_clusters = trajectory_cluster_model.n_clusters
 
         trajectory_diversity = ProfileFeatureComputer._normalized_cluster_entropy(
             traj_labels, n_traj_clusters)
 
         return trajectory_diversity
 
-    def compute_state_coverage(states, actions, n_state_clusters, state_scaling_stats=None, action_bounds=None) -> tuple:
+    def compute_state_coverage(states, actions, n_state_clusters, state_scaling_stats=None, action_bounds=None, state_cluster_model=None) -> tuple:
         state_std = float(np.mean(np.std(states, axis=0)))
 
         # Scale states before clustering so high-variance dimensions don't
@@ -292,12 +318,16 @@ class ProfileFeatureComputer:
         scaled_states = ProfileFeatureComputer._standardize(
             states, state_scaling_stats)
 
-        state_model = MiniBatchKMeans(
-            n_clusters=n_state_clusters,
-            random_state=42,
-            n_init="auto"
-        )
-        state_labels = state_model.fit_predict(scaled_states)
+        # `state_cluster_model`, if given, should be fit once on pooled
+        # family data (see compute_cluster_model) and reused here instead of
+        # fitting a fresh model per dataset — see that function's docstring
+        # for why state_cluster_coverage is meaningless without this.
+        if state_cluster_model is None:
+            state_cluster_model = ProfileFeatureComputer.compute_cluster_model(
+                states, n_state_clusters, state_scaling_stats)
+
+        state_labels = state_cluster_model.predict(scaled_states)
+        n_state_clusters = state_cluster_model.n_clusters
 
         state_cluster_coverage = float(
             len(np.unique(state_labels)) / n_state_clusters)

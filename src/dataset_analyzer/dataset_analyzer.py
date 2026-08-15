@@ -138,11 +138,11 @@ def dataset_family(env_name):
     return env_name.split("-", 1)[0]
 
 
-def compute_family_pooled_stats(env_names):
+def compute_family_pooled_stats(env_names, n_clusters=20):
     """Pool cross-variant reference statistics across all sibling dataset
     variants of an environment family (e.g. every hopper-*-v0 dataset), so
     coverage/diversity metrics use a shared reference instead of each dataset
-    normalizing to its own distribution:
+    normalizing to (or clustering) its own distribution:
 
     - `saco_bounds` / `action_bounds`: per-dimension (min, max) for
       compute_relative_state_action_coverage and the action-entropy
@@ -151,10 +151,17 @@ def compute_family_pooled_stats(env_names):
       clustering in compute_state_coverage.
     - `trajectory_scaling_stats`: per-dimension (mean, std) for the
       trajectory clustering in compute_trajectory_diversity.
+    - `state_cluster_model` / `trajectory_cluster_model`: MiniBatchKMeans
+      models fit once on the pooled family data, reused (via `.predict()`)
+      for every sibling variant's compute_state_coverage /
+      compute_trajectory_diversity call instead of each variant fitting (and
+      thus fully occupying) its own adaptive partition — see
+      compute_cluster_model.
 
-    Without pooling, a narrow dataset (e.g. expert) gets rescaled/rebinned to
-    fill the same range as a wide one (e.g. random), making it look just as
-    covering/diverse even though it explores far less of the space.
+    Without pooling, a narrow dataset (e.g. expert) gets rescaled/rebinned/
+    clustered to fill the same range as a wide one (e.g. random), making it
+    look just as covering/diverse even though it explores far less of the
+    space.
     """
     all_states, all_actions, all_traj_features = [], [], []
     for env_name in env_names:
@@ -179,16 +186,29 @@ def compute_family_pooled_stats(env_names):
     min_vals, max_vals = ProfileFeatureComputer.compute_state_action_bounds(
         pooled_states, pooled_actions)
 
+    state_scaling_stats = ProfileFeatureComputer.compute_scaling_stats(
+        pooled_states)
+    trajectory_scaling_stats = ProfileFeatureComputer.compute_scaling_stats(
+        pooled_traj_features)
+
+    n_state_clusters = min(n_clusters, len(pooled_states))
+    n_traj_clusters = min(n_clusters, len(pooled_traj_features))
+
     return {
         "saco_bounds": (min_vals, max_vals),
         "action_bounds": (min_vals[state_dim:], max_vals[state_dim:]),
-        "state_scaling_stats": ProfileFeatureComputer.compute_scaling_stats(pooled_states),
-        "trajectory_scaling_stats": ProfileFeatureComputer.compute_scaling_stats(pooled_traj_features),
+        "state_scaling_stats": state_scaling_stats,
+        "trajectory_scaling_stats": trajectory_scaling_stats,
+        "state_cluster_model": ProfileFeatureComputer.compute_cluster_model(
+            pooled_states, n_state_clusters, state_scaling_stats),
+        "trajectory_cluster_model": ProfileFeatureComputer.compute_cluster_model(
+            pooled_traj_features, n_traj_clusters, trajectory_scaling_stats),
     }
 
 
 def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bounds=None,
                      state_scaling_stats=None, action_bounds=None, trajectory_scaling_stats=None,
+                     state_cluster_model=None, trajectory_cluster_model=None,
                      output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
@@ -250,7 +270,8 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
     # State Coverage
     state_std, state_cluster_coverage, state_cluster_entropy, action_std, action_usage_entropy = ProfileFeatureComputer.compute_state_coverage(
         states, actions, n_state_clusters,
-        state_scaling_stats=state_scaling_stats, action_bounds=action_bounds)
+        state_scaling_stats=state_scaling_stats, action_bounds=action_bounds,
+        state_cluster_model=state_cluster_model)
 
     # mean Estimated Action Stochasticity EAS and normalized Expected Return Index ERI as in Swazinna et al
     if CALCULATE_EAS:
@@ -267,7 +288,8 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
 
     # trajectory diversity
     trajectory_diversity = ProfileFeatureComputer.compute_trajectory_diversity(
-        episodes, n_traj_clusters, trajectory_scaling_stats=trajectory_scaling_stats)
+        episodes, n_traj_clusters, trajectory_scaling_stats=trajectory_scaling_stats,
+        trajectory_cluster_model=trajectory_cluster_model)
 
     # state action coverage inspired by Schweighofer et al, but without replay normalisation but with continous state and action space quantization
     saco = ProfileFeatureComputer.compute_relative_state_action_coverage(
@@ -400,7 +422,11 @@ if __name__ == "__main__":
                             "state_scaling_stats"),
                         action_bounds=family_stats.get("action_bounds"),
                         trajectory_scaling_stats=family_stats.get(
-                            "trajectory_scaling_stats"))
+                            "trajectory_scaling_stats"),
+                        state_cluster_model=family_stats.get(
+                            "state_cluster_model"),
+                        trajectory_cluster_model=family_stats.get(
+                            "trajectory_cluster_model"))
                     # break
                     print(json.dumps(profile, indent=4))
                     save_profile(profile, output_dir=output_dir)
