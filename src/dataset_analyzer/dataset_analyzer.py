@@ -267,7 +267,7 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
     med_return = float(np.median(returns))
     # Reward sparsity: fraction of steps with near-zero reward
     # Use a threshold since continuous Mujoco rewards are rarely exactly 0
-    reward_sparcity = float(np.mean(np.abs(rewards) < 0.1))
+    reward_sparsity = float(np.mean(np.abs(rewards) < 0.1))
 
     # State Coverage
     state_std, state_cluster_coverage, state_cluster_entropy, action_std, action_usage_entropy = ProfileFeatureComputer.compute_state_coverage(
@@ -327,7 +327,7 @@ def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bo
             "Min Return": min_return,
             "Max Return": max_return,
             "Median Return": med_return,
-            "Reward Sparsity": reward_sparcity,
+            "Reward Sparsity": reward_sparsity,
             "ERI": eri,  # Swizanna et al
             "TQ": tq  # Schweighofer et al
         },

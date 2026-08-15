@@ -103,14 +103,20 @@ class ProfileFeatureComputer:
         return float(n_unique_cells / n_transitions)
 
     def compute_normalized_ERI(min_return, max_return, mean_return) -> float:
-        """Compute the normalized Expected Return Index (ERI) for a dataset as in "Measuring Data Quality for Data Selection in Offline Reinforcement Learning" by Swazinna et al (formula 2)."""
+        """Compute the normalized Expected Return Index (ERI) for a dataset as in "Measuring Data Quality for Data Selection in Offline Reinforcement Learning" by Swazinna et al (formula 2).
+
+        ERI = (max_return - mean_return) / (mean_return - min_return)
+
+        Higher ERI → more room for improvement relative to current performance.
+        """
         if max_return == min_return:
             return 0.0  # Avoid division by zero; all returns are the same
 
-        if min_return < 0:
-            return float(((max_return - min_return) - (mean_return - min_return)) / (mean_return - min_return))
-        else:
-            return float(((max_return) - (mean_return)) / (mean_return))
+        denom = mean_return - min_return
+        if denom == 0:
+            return 0.0  # mean is at minimum; no improvement margin
+
+        return float((max_return - mean_return) / denom)
 
     def compute_mean_estimated_action_stochasticity(actions, states, epochs=50, batch_size=256) -> float:
         """Estimate the Action Stochasticity (EAS) of the behavior policy that
@@ -204,7 +210,12 @@ class ProfileFeatureComputer:
         with torch.no_grad():
             _, predicted_sigma = model(states_t.to(device))
 
-        return float(predicted_sigma.mean())
+        eas = float(predicted_sigma.mean())
+        # Undo the rescaling so EAS is reported in the original action space
+        if max_abs_action > 1.0:
+            eas *= max_abs_action
+
+        return eas
 
     def compute_trajectory_features(episodes) -> np.ndarray:
         """Per-episode behavior descriptor: mean/std of observations, mean/std
