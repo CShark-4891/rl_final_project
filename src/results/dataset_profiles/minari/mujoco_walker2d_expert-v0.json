@@ -11,7 +11,7 @@
         "State Cluster Entropy": 0.8342607449624703,
         "Action Standard Deviation": 0.5580729246139526,
         "Action Usage Entropy": 3.49712149721398,
-        "EAS": 0.0,
+        "EAS": 1.0889317989349365,
         "SACo": 0.9924789079154115
     },
     "Quality": {
@@ -20,8 +20,8 @@
         "Min Return": 2664.171691972849,
         "Max Return": 6972.797332575603,
         "Median Return": 6870.714355565737,
-        "Reward Sparsity": 0.0,
-        "ERI": 0.018254727608691783,
+        "Reward Sparsity": 0.0030895024970225885,
+        "ERI": 0.029879520572877984,
         "TQ": 0.9709873631080097
     },
     "Diversity": {

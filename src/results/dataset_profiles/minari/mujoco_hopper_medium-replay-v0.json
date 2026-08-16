@@ -1,0 +1,30 @@
+{
+    "Dataset": "mujoco/hopper/medium-replay-v0",
+    "Size": {
+        "Transitions": 4681,
+        "Episodes": 200,
+        "Average Episode Length": 23.405
+    },
+    "Coverage": {
+        "State Standard Deviation": 0.6748449005945217,
+        "State Cluster Coverage": 0.35,
+        "State Cluster Entropy": 0.026507660014760414,
+        "Action Standard Deviation": 0.578363299369812,
+        "Action Usage Entropy": 3.906892002510272,
+        "EAS": 0.9073753952980042,
+        "SACo": 0.9935911130100405
+    },
+    "Quality": {
+        "Mean Return": 20.608330146290754,
+        "Std Return": 19.42973364514029,
+        "Min Return": 3.7152827909064596,
+        "Max Return": 138.10834375626047,
+        "Median Return": 14.468382916566814,
+        "Reward Sparsity": 0.03503524887844478,
+        "ERI": 6.955525023880261,
+        "TQ": 0.12569880642676376
+    },
+    "Diversity": {
+        "Trajectory Diversity": 0.43890820586471596
+    }
+}
