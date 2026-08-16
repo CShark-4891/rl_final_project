@@ -1,0 +1,7 @@
+
+numpy<2
+Cython==0.29.37
+
+mjrl @ git+https://github.com/aravindr93/mjrl.git
+six
+d4rl==1.1
