@@ -7,10 +7,12 @@
     },
     "Coverage": {
         "State Standard Deviation": 2.7820029258728027,
-        "State Cluster Coverage": 1.0,
-        "State Entropy": 0.9704941031346166,
-        "Action Variance": 0.3944317102432251,
-        "Action Entropy": 3.890724450553502
+        "State Cluster Coverage": 0.95,
+        "State Cluster Entropy": 0.5620239416493854,
+        "Action Standard Deviation": 0.6280372738838196,
+        "Action Usage Entropy": 3.890763091026717,
+        "EAS": 1.003467321395874,
+        "SACo": 0.9999929999089988
     },
     "Quality": {
         "Mean Return": 0.9054413437843323,
@@ -18,9 +20,11 @@
         "Min Return": -16.256498336791992,
         "Max Return": 57.26209259033203,
         "Median Return": 0.12781889736652374,
-        "Reward Sparsity": 0.0
+        "Reward Sparsity": 0.1239426112539463,
+        "ERI": 3.2838159494483876,
+        "TQ": 0.23343673299707626
     },
     "Diversity": {
-        "Trajectory Diversity": 0.9917509816659004
+        "Trajectory Diversity": 0.8751396829335809
     }
 }
