@@ -290,7 +290,7 @@ class ProfileFeatureComputer:
         """
         scaled_data = ProfileFeatureComputer._standardize(data, scaling_stats)
         model = MiniBatchKMeans(n_clusters=n_clusters,
-                                 random_state=42, n_init="auto")
+                                random_state=42, n_init="auto")
         model.fit(scaled_data)
         return model
 
@@ -322,6 +322,7 @@ class ProfileFeatureComputer:
 
     def compute_state_coverage(states, actions, n_state_clusters, state_scaling_stats=None, action_bounds=None, state_cluster_model=None) -> tuple:
         state_std = float(np.mean(np.std(states, axis=0)))
+        action_std = float(np.mean(np.std(actions, axis=0)))
 
         # Scale states before clustering so high-variance dimensions don't
         # dominate the cluster assignment. See compute_scaling_stats for why
@@ -348,15 +349,14 @@ class ProfileFeatureComputer:
         state_cluster_entropy = ProfileFeatureComputer._normalized_cluster_entropy(
             state_labels, n_state_clusters)
 
-        # Metric 1.2: Action standard deviation and per-dimension usage
-        # entropy. Unlike state_cluster_entropy this is not clustering-based:
+        # per-dimension usage entropy. Unlike state_cluster_entropy this is not clustering-based:
         # it's the mean Shannon entropy of each action dimension's own value
         # histogram, i.e. how uniformly that actuator is used across its
         # observed range. `action_bounds`, if given, should be a pooled
         # per-dimension (min, max) across sibling dataset variants (see
         # compute_state_action_bounds) so every variant's histogram spans the
         # same range instead of stretching to its own min/max.
-        action_std = float(np.mean(np.std(actions, axis=0)))
+
         action_usage_entropy = float(np.mean([
             ProfileFeatureComputer._calculate_entropy(
                 actions[:, dim],

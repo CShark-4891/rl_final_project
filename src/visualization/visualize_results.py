@@ -1239,7 +1239,8 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
             QUALITY_FEATURES), len(SIZE_FEATURES)]
         fig, axes = plt.subplots(
             len(groups), 3,
-            figsize=(max(13.0, 1.6 * sum(panel_feature_counts)), 3.0 * len(groups)),
+            figsize=(max(13.0, 1.6 * sum(panel_feature_counts)),
+                     3.0 * len(groups)),
             squeeze=False,
             gridspec_kw={"width_ratios": panel_feature_counts},
             # Share the y-axis within each panel column (Coverage / Quality /
@@ -1254,7 +1255,7 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
         for row_idx, group in enumerate(groups):
             group_df = env_df[env_df["tier_group"] == group]
             ax_coverage, ax_quality, ax_size = axes[row_idx,
-                                                      0], axes[row_idx, 1], axes[row_idx, 2]
+                                                    0], axes[row_idx, 1], axes[row_idx, 2]
 
             _draw_grouped_source_bars(
                 ax_coverage, group_df, sources, source_colors,
