@@ -1242,6 +1242,13 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
             figsize=(max(13.0, 1.6 * sum(panel_feature_counts)), 3.0 * len(groups)),
             squeeze=False,
             gridspec_kw={"width_ratios": panel_feature_counts},
+            # Share the y-axis within each panel column (Coverage / Quality /
+            # Size) across every tier-group row, so e.g. the "Simple / Random"
+            # row's Coverage panel is scaled identically to the "Medium"
+            # row's Coverage panel and bar heights are directly comparable
+            # top-to-bottom. Columns still scale independently of each other
+            # since Coverage/Quality/Size live on very different magnitudes.
+            sharey="col",
         )
 
         for row_idx, group in enumerate(groups):
@@ -1260,13 +1267,23 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                 SIZE_FEATURES, x_size, width, n_sources,
                 error_feature="Mean_Return", error_col="Std_Return")
 
-            for ax, x, labels in (
-                (ax_coverage, x_coverage, coverage_labels),
-                (ax_quality, x_quality, quality_labels),
-                (ax_size, x_size, size_labels),
+            for ax, x, labels, col_label in (
+                (ax_coverage, x_coverage, coverage_labels, "Coverage"),
+                (ax_quality, x_quality, quality_labels, "Quality"),
+                (ax_size, x_size, size_labels, "Size"),
             ):
                 ax.set_title(TIER_GROUP_LABELS.get(
                     group, group), fontsize=11, loc="left")
+                # Column category header, set once on the top row only. Uses
+                # a plain axes-fraction text rather than a second set_title()
+                # call: matplotlib shares one title-offset transform across
+                # the 'left'/'center'/'right' title slots of an axes, so a
+                # second set_title() call's pad overrides the first and both
+                # end up on the same baseline instead of stacking.
+                if row_idx == 0:
+                    ax.text(0.5, 1.22, col_label, transform=ax.transAxes,
+                            ha="center", va="bottom", fontsize=13,
+                            fontweight="bold")
                 ax.grid(axis="y", alpha=0.3)
                 ax.set_xticks(x)
                 ax.set_xticklabels(
