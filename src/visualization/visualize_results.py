@@ -194,6 +194,8 @@ D4RL_REF_SCORES = {
     },
 }
 
+OUTPUT_FORMAT = ".svg"
+
 
 def _normalize_raw_score(env_family: str, raw_score: float) -> float | None:
     """Normalize a raw return to a D4RL percentage using reference bounds."""
@@ -472,6 +474,11 @@ def _save_figure(fig, filename: str, output_dir: str, dpi: int = 150):
     """Save a figure to output_dir/filename with consistent settings."""
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, filename)
+
+    _, ext = os.path.splitext(path)
+    if OUTPUT_FORMAT != ext:
+        path = path.replace(ext, OUTPUT_FORMAT)
+
     fig.savefig(path, dpi=dpi, bbox_inches="tight", facecolor="white")
     print(f"  [✓] Saved: {path}")
     plt.close(fig)
@@ -556,10 +563,10 @@ def plot_performance_overview(
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels([ENV_LABELS.get(e, e) for e in envs], fontsize=12)
-    ax.set_ylabel("D4RL Normalized Score (%)", fontsize=12)
+    ax.set_xticklabels([ENV_LABELS.get(e, e) for e in envs], fontsize=10)
+    ax.set_ylabel("D4RL Normalized Score (%)", fontsize=10)
     ax.set_title(
-        f"{algorithm_label} Performance Across Environments and Dataset Tiers", fontsize=14)
+        f"{algorithm_label} Performance Across Environments and Dataset Tiers", fontsize=10)
     ax.axhline(y=0, color="gray", linestyle="--",
                linewidth=0.8, label="Random policy")
     ax.legend(fontsize=10, loc="best")
@@ -618,8 +625,8 @@ def plot_metrics_vs_performance(
             ax.plot(x_sorted, poly(x_sorted), color="gray",
                     linestyle="--", linewidth=1.2, zorder=2)
 
-        ax.set_xlabel(FEATURE_LABELS.get(feat, feat), fontsize=11)
-        ax.set_ylabel("D4RL Normalized Score (%)", fontsize=11)
+        ax.set_xlabel(FEATURE_LABELS.get(feat, feat), fontsize=10)
+        ax.set_ylabel("D4RL Normalized Score (%)", fontsize=10)
         ax.grid(alpha=0.3)
 
     # Hide any unused subplot slots when len(features) doesn't fill the grid
@@ -632,7 +639,7 @@ def plot_metrics_vs_performance(
                fontsize=10, frameon=True, bbox_to_anchor=(0.5, 1.02))
 
     fig.suptitle(
-        f"Dataset Characteristics vs. {algorithm_label} Performance", fontsize=14, y=1.06)
+        f"Dataset Characteristics vs. {algorithm_label} Performance", fontsize=10, y=1.06)
     fig.tight_layout()
 
     _save_figure(fig, output_filename, output_dir)
@@ -688,7 +695,7 @@ def plot_correlation_heatmap(
         ax=ax,
     )
     ax.set_title(f"Correlation Matrix: Dataset Metrics vs. {algorithm_label} Performance",
-                 fontsize=13, pad=15)
+                 fontsize=10, pad=15)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=30,
                        ha="right", fontsize=10)
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
@@ -739,18 +746,18 @@ def plot_feature_importance(
     ax.set_yticklabels(
         [FEATURE_LABELS.get(features[i], features[i])
          for i in indices],
-        fontsize=11,
+        fontsize=10,
     )
     ax.invert_yaxis()
-    ax.set_xlabel("Feature Importance", fontsize=12)
+    ax.set_xlabel("Feature Importance", fontsize=10)
     ax.set_title(f"Random Forest Feature Importance\nfor Predicting {algorithm_label} Performance",
-                 fontsize=13)
+                 fontsize=10)
     ax.grid(axis="x", alpha=0.3)
 
     # Annotate bars with values
     for bar, val in zip(bars, importances[indices]):
         ax.text(bar.get_width() + 0.005, bar.get_y() + bar.get_height() / 2,
-                f"{val:.3f}", va="center", fontsize=9)
+                f"{val:.3f}", va="center", fontsize=10)
 
     _save_figure(fig, output_filename, output_dir)
 
@@ -826,10 +833,10 @@ def plot_predicted_vs_actual(
     ax.plot(lims, lims, "k--", linewidth=1, alpha=0.6,
             label="Perfect prediction", zorder=1)
 
-    ax.set_xlabel("Predicted D4RL Score (%)", fontsize=12)
-    ax.set_ylabel("Actual D4RL Score (%)", fontsize=12)
+    ax.set_xlabel("Predicted D4RL Score (%)", fontsize=10)
+    ax.set_ylabel("Actual D4RL Score (%)", fontsize=10)
     ax.set_title(f"Meta-Predictor: Predicted vs. Actual {algorithm_label} Performance\n(Leave-One-Out CV)",
-                 fontsize=13)
+                 fontsize=10)
     ax.legend(fontsize=10, loc="upper left")
     ax.grid(alpha=0.3)
     ax.set_aspect("equal")
@@ -838,7 +845,7 @@ def plot_predicted_vs_actual(
     valid = ~np.isnan(predictions)
     mae = np.mean(np.abs(predictions[valid] - y[valid]))
     ax.text(0.95, 0.05, f"MAE = {mae:.2f}%", transform=ax.transAxes,
-            ha="right", va="bottom", fontsize=11,
+            ha="right", va="bottom", fontsize=10,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
 
     _save_figure(fig, output_filename, output_dir)
@@ -923,11 +930,11 @@ def plot_seed_consistency(
     )
 
     ax.set_xlabel("")
-    ax.set_ylabel("D4RL Normalized Score (%)", fontsize=12)
-    ax.set_title("Seed-Level Consistency Across Datasets", fontsize=14)
+    ax.set_ylabel("D4RL Normalized Score (%)", fontsize=10)
+    ax.set_title("Seed-Level Consistency Across Datasets", fontsize=10)
     ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.8)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=35,
-                       ha="right", fontsize=9)
+                       ha="right", fontsize=10)
     ax.grid(axis="y", alpha=0.3)
 
     _save_figure(fig, output_filename, output_dir)
@@ -981,12 +988,12 @@ def plot_radar_comparison(df_profiles: pd.DataFrame, output_dir: str):
                     linewidth=2, label=label, color=color)
 
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(radar_labels, fontsize=9)
+        ax.set_xticklabels(radar_labels, fontsize=10)
         ax.set_ylim(0, 1.1)
         ax.set_yticks([0.25, 0.5, 0.75, 1.0])
-        ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"], fontsize=7)
+        ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"], fontsize=10)
         ax.set_title(f"{ENV_LABELS.get(env, env)}: Expert vs. Simple Dataset Profile",
-                     fontsize=13, pad=20)
+                     fontsize=10, pad=20)
         ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1), fontsize=10)
 
         _save_figure(fig, f"radar_{env}_expert_vs_simple.png", output_dir)
@@ -1062,9 +1069,9 @@ def plot_all_datasets_radar(df_profiles: pd.DataFrame, output_dir: str):
         ax.set_xticklabels(radar_labels, fontsize=10)
         ax.set_ylim(0, 1.1)
         ax.set_yticks([0.25, 0.5, 0.75, 1.0])
-        ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"], fontsize=7)
+        ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"], fontsize=10)
         ax.set_title(f"{ENV_LABELS.get(env, env)}: Dataset Profile by Tier",
-                     fontsize=14, pad=20)
+                     fontsize=10, pad=20)
         ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.1),
                   fontsize=10, frameon=True)
 
@@ -1135,15 +1142,15 @@ def plot_cross_algorithm_tier_comparison(
             bars[-1].set_linewidth(1.5)
 
             ax.set_xticks(x)
-            ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+            ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=10)
             ax.set_ylabel("D4RL Score (%)", fontsize=10)
-            ax.set_title(TIER_LABELS.get(tier, tier), fontsize=11, loc="left")
+            ax.set_title(TIER_LABELS.get(tier, tier), fontsize=10, loc="left")
             ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.8)
             ax.grid(axis="y", alpha=0.3)
 
         fig.suptitle(
             f"{ENV_LABELS.get(env, env)}: Cross-Algorithm Performance by Tier ({source_label})",
-            fontsize=14)
+            fontsize=10)
         fig.tight_layout()
 
         _save_figure(fig, f"{env}_tier_comparison.png", output_dir)
@@ -1274,7 +1281,7 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                 (ax_size, x_size, size_labels, "Size"),
             ):
                 ax.set_title(TIER_GROUP_LABELS.get(
-                    group, group), fontsize=11, loc="left")
+                    group, group), fontsize=10, loc="left")
                 # Column category header, set once on the top row only. Uses
                 # a plain axes-fraction text rather than a second set_title()
                 # call: matplotlib shares one title-offset transform across
@@ -1283,12 +1290,12 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                 # end up on the same baseline instead of stacking.
                 if row_idx == 0:
                     ax.text(0.5, 1.22, col_label, transform=ax.transAxes,
-                            ha="center", va="bottom", fontsize=13,
+                            ha="center", va="bottom", fontsize=10,
                             fontweight="bold")
                 ax.grid(axis="y", alpha=0.3)
                 ax.set_xticks(x)
                 ax.set_xticklabels(
-                    labels, rotation=0, ha="center", fontsize=9)
+                    labels, rotation=0, ha="center", fontsize=10)
 
         # Built directly from source_colors (rather than pulled off one
         # subplot's handles) so every source appears even if a row happens
@@ -1299,7 +1306,7 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
 
         fig.suptitle(
             f"{ENV_LABELS.get(env, env)}: Dataset Source Comparison by Tier",
-            fontsize=14)
+            fontsize=10)
         fig.tight_layout()
 
         _save_figure(fig, f"{env}_source_comparison.png", output_dir)
