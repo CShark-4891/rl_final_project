@@ -207,9 +207,9 @@ def compute_family_pooled_stats(env_names, n_clusters=20):
 
 
 def analyze_dataset(env_name, n_clusters=20, hist_bins=50, saco_bins=10, saco_bounds=None,
-                     state_scaling_stats=None, action_bounds=None, trajectory_scaling_stats=None,
-                     state_cluster_model=None, trajectory_cluster_model=None,
-                     output_dir=default_paths.DATASET_PROFILES_DIR):
+                    state_scaling_stats=None, action_bounds=None, trajectory_scaling_stats=None,
+                    state_cluster_model=None, trajectory_cluster_model=None,
+                    output_dir=default_paths.DATASET_PROFILES_DIR):
     print(f"\n[+] Loading {env_name}")
 
     episodes = load_episodes(env_name)
