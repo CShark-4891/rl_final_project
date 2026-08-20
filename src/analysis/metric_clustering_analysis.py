@@ -44,46 +44,52 @@ def load_all_dataset_profiles(dataset_profiles_dir):
                       Index: Dataset-Namen
     """
     profiles_dir = Path(dataset_profiles_dir)
-    
+
+    # Nur MuJoCo-Locomotion-Environments berücksichtigen (antmaze/ant ausgeschlossen:
+    # anderes Metrik-Set, State Entropy/Action Variance statt State Cluster
+    # Entropy/Action Standard Deviation, und fehlen EAS/SACo/ERI/TQ komplett →
+    # würden Metriken als NaN entfernen)
+    ALLOWED_ENVS = ("halfcheetah", "hopper", "walker2d")
+
     all_data = []
     dataset_names = []
-    
-    # D4RL Datensätze (antmaze ausgeschlossen: anderes Metrik-Set, kein MuJoCo-Locomotion)
+
+    # D4RL Datensätze
     d4rl_dir = profiles_dir / "d4rl"
     if d4rl_dir.exists():
         for json_file in sorted(d4rl_dir.glob("*.json")):
-            # antmaze-Datensätze ausschließen: anderes Metrik-Set (State Entropy,
-            # Action Variance statt State Cluster Entropy, Action Standard Deviation)
-            # und fehlen EAS/SACo/ERI/TQ komplett → würden Metriken als NaN entfernen
-            if "antmaze" in json_file.name:
+            if not json_file.name.startswith(ALLOWED_ENVS):
                 continue
             with open(json_file) as f:
                 data = json.load(f)
                 dataset_names.append(data["Dataset"])
                 all_data.append(flatten_metrics(data))
-    
+
     # Minari Datensätze
     minari_dir = profiles_dir / "minari"
     if minari_dir.exists():
+        minari_prefixes = tuple(f"mujoco_{env}_" for env in ALLOWED_ENVS)
         for json_file in sorted(minari_dir.glob("*.json")):
+            if not json_file.name.startswith(minari_prefixes):
+                continue
             with open(json_file) as f:
                 data = json.load(f)
                 dataset_names.append(data["Dataset"])
                 all_data.append(flatten_metrics(data))
-    
+
     # Erstelle DataFrame
     df = pd.DataFrame(all_data, index=dataset_names)
-    
+
     n_d4rl = sum(1 for name in dataset_names if "mujoco" not in name)
     print(f"✓ Geladen: {len(df)} Datensätze mit {len(df.columns)} Metriken")
-    print(f"  - D4RL: {n_d4rl} Datensätze (antmaze ausgeschlossen)")
-    print(f"  - Minari: {len(df) - n_d4rl} Datensätze")
+    print(f"  - D4RL: {n_d4rl} Datensätze (nur halfcheetah/hopper/walker2d)")
+    print(f"  - Minari: {len(df) - n_d4rl} Datensätze (nur halfcheetah/hopper/walker2d)")
     
     return df
 
 
 def flatten_metrics(data):
-    """Flattene nested metric dict → 10 Metriken, exakt benannt wie FEATURE_LABELS im Visualizer.
+    """Flattene nested metric dict → 11 Metriken, exakt benannt wie FEATURE_LABELS im Visualizer.
     
     Mappt die JSON-Keys (mit Leerzeichen, andere Namen) auf die canonicalen
     Metrik-Namen, die auch im Visualizer (visualize_results.py) verwendet werden.
@@ -91,8 +97,9 @@ def flatten_metrics(data):
     """
     # Mapping: JSON-Key → canonicaler Name (wie im Visualizer)
     KEY_MAP = {
-        # Coverage — nur die 7 Metriken, die auch im Visualizer verwendet werden
+        # Coverage — nur die 8 Metriken, die auch im Visualizer verwendet werden
         "State Cluster Entropy": "State_Coverage_Entropy",
+        "State Cluster Coverage": "State_Cluster_Coverage",
         "State Standard Deviation": "State_Standard_Deviation",
         "Action Standard Deviation": "Action_Standard_Deviation",
         "Action Usage Entropy": "Action_Entropy",
@@ -269,29 +276,51 @@ def select_best_metrics_per_cluster(results, selection_method='variance'):
 # SCHRITT 5: VISUALISIERUNGEN
 # ============================================================================
 
-def plot_dendrogram(results, output_dir=None, figsize=(16, 6)):
-    """Visualisiere Hierarchical Clustering als Dendrogram."""
-    fig, ax = plt.subplots(figsize=figsize)
-    
-    dendro = dendrogram(
-        results['linkage_matrix'],
-        labels=results['metric_names'],
-        ax=ax,
-        leaf_rotation=90
-    )
-    
-    ax.set_title('Metriken-Clustering: Hierarchical Dendrogram', fontsize=14, fontweight='bold')
-    ax.set_ylabel('Distance (1 - |correlation|)', fontsize=11)
-    ax.grid(axis='y', alpha=0.3)
-    
-    plt.tight_layout()
-    
-    if output_dir:
-        output_path = Path(output_dir) / 'dendrogram.png'
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"✓ Saved: {output_path}")
-    
-    plt.close(fig)
+def plot_dendrogram(results, output_dir=None, width_pt=397.48):
+    """Visualisiere Hierarchical Clustering als Dendrogram.
+
+    width_pt=397.48 entspricht \\textwidth des NeurIPS-Papers (paper.tex), sodass
+    die Grafik unskaliert (\\includegraphics{width=\\textwidth}) eingebunden werden kann.
+    """
+    inches_per_pt = 1.0 / 72.27
+    fig_width = width_pt * inches_per_pt
+    # Höhe unabhängig von der Breite gewählt: die rotierten Leaf-Labels
+    # brauchen bei fontsize=10 absoluten (nicht proportionalen) Platz. Der
+    # längste Label-Name (Action_Standard_Deviation) braucht bei fontsize=10
+    # ca. 2 Zoll vertikalen Platz allein für den Text.
+    fig_height = 4.0
+
+    with plt.rc_context({'font.size': 10, 'font.family': 'sans-serif'}):
+        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+
+        dendro = dendrogram(
+            results['linkage_matrix'],
+            labels=results['metric_names'],
+            ax=ax,
+            leaf_rotation=90
+        )
+
+        ax.set_title('Metriken-Clustering: Hierarchical Dendrogram', fontsize=10, fontweight='bold')
+        ax.set_ylabel('Distance (1 - |correlation|)', fontsize=10)
+        ax.tick_params(axis='both', labelsize=10)
+        ax.grid(axis='y', alpha=0.3)
+
+        # subplots_adjust statt tight_layout: tight_layout() reserviert bei
+        # dieser schmalen width_pt-Breite nicht zuverlässig genug Platz für
+        # das rotierte y-Label / die rotierten Leaf-Labels, ohne bbox_inches
+        # ='tight' (das die exakte width_pt-Breite verfälschen würde).
+        fig.subplots_adjust(left=0.12, right=0.985, top=0.90, bottom=0.52)
+
+        if output_dir:
+            # kein bbox_inches='tight': würde die Figure zuschneiden und die
+            # exakte width_pt-Breite verfälschen (wichtig für 1:1-Einbindung
+            # via \includegraphics{width=\textwidth} im Paper)
+            for ext in ('svg', 'png'):
+                output_path = Path(output_dir) / f'dendrogram.{ext}'
+                plt.savefig(output_path, dpi=150)
+                print(f"✓ Saved: {output_path}")
+
+        plt.close(fig)
     return fig
 
 
