@@ -42,16 +42,19 @@ DATASETS = [
 ]
 
 # Official D4RL reference baselines for normalized scoring calculations
-# TODO: Needs Checking! => Find official reference from paper or repo
+# Link for source: https://github.com/Farama-Foundation/D4RL/blob/master/d4rl/infos.py
 D4RL_REF_SCORES = {
+    "halfcheetah-simple-v2": {"random": -280.05, "expert": 12135.0},
     "halfcheetah-medium-v2": {"random": -280.05, "expert": 12135.0},
     "halfcheetah-random-v2": {"random": -280.05, "expert": 12135.0},
     "halfcheetah-expert-v2": {"random": -280.05, "expert": 12135.0},
     "halfcheetah-medium-replay-v2": {"random": -280.05, "expert": 12135.0},
     "halfcheetah-medium-expert-v2": {"random": -280.05, "expert": 12135.0},
+    "hopper-simple-v2": {"random": -20.0, "expert": 3234.3},
     "hopper-medium-v2": {"random": -20.0, "expert": 3234.3},
     "hopper-random-v2": {"random": -20.0, "expert": 3234.3},
     "hopper-expert-v2": {"random": -20.0, "expert": 3234.3},
+    "walker2d-simple-v2": {"random": 1.62, "expert": 4592.3},
     "walker2d-medium-v2": {"random": 1.62, "expert": 4592.3},
     "walker2d-random-v2": {"random": 1.62, "expert": 4592.3},
     "walker2d-expert-v2": {"random": 1.62, "expert": 4592.3},
