@@ -6,6 +6,7 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 from functools import reduce
 import json
 import os
@@ -109,17 +110,19 @@ RESULT_SOURCE_TO_PROFILE_SOURCE = {
 # dataset_analyzer.py): Coverage, Quality, and Size ("dataset shape").
 # FEATURE_LABELS is the single label lookup shared by all of them.
 #
-# plot_dataset_source_comparison draws all three lists as separate bar-chart
-# panels so their very different magnitudes/ranges never share an axis:
-# Mean_Return lives in SIZE_FEATURES rather than QUALITY_FEATURES for exactly
-# that reason, despite coming from the profile's "Quality" JSON section — its
-# absolute scale (tens to thousands) would dwarf the bounded-ratio
-# Reward_Sparsity/ERI/TQ features if they shared one axis.
+# plot_dataset_source_comparison draws Coverage and Quality as one shared-axis
+# bar panel each, since every feature within each list is roughly comparable
+# scale. Size is different: Transitions/Episodes/Avg_Episode_Length are
+# related (Transitions ~= Episodes * Avg_Episode_Length) but differ from each
+# other by orders of magnitude, so cramming them onto one shared axis would
+# make the smaller ones invisible. Size instead gets one independently-scaled
+# sub-panel per metric (see the Size-panel loop in plot_dataset_source_comparison).
 
 FEATURE_LABELS = {
     # Coverage
     "State_Coverage_Entropy": "State Coverage Entropy",
     "State_Standard_Deviation": "State Standard Deviation",
+    "State_Cluster_Coverage": "State Cluster Coverage",
     "Action_Standard_Deviation": "Action Standard Deviation",
     "Action_Entropy": "Action Usage Entropy",
     "Trajectory_Diversity": "Trajectory Diversity",
@@ -131,6 +134,7 @@ FEATURE_LABELS = {
     "TQ": "Trajectory Quality (TQ)",
     # Size / dataset shape
     "Mean_Return": "Mean Return",
+    "Transitions": "Total Transitions",
     "Episodes": "Episodes",
     "Avg_Episode_Length": "Avg. Episode Length",
 }
@@ -141,9 +145,10 @@ FEATURE_LABELS = {
 # regardless of scale, so scale-comparability only matters for the bar
 # panel).
 COVERAGE_FEATURES = [
-    "State_Coverage_Entropy",
     "State_Standard_Deviation",
     "Action_Standard_Deviation",
+    "State_Cluster_Coverage",
+    "State_Coverage_Entropy",
     "Action_Entropy",
     "Trajectory_Diversity",
     "EAS",
@@ -157,14 +162,15 @@ QUALITY_FEATURES = [
     "TQ",
 ]
 
-# List 3: Size / "dataset shape" features — absolute-scale counts, plus
-# Mean_Return (see the module comment above for why it's grouped here
-# instead of QUALITY_FEATURES). Mean_Return's companion Std_Return is drawn
-# as that bar's error bar in plot_dataset_source_comparison rather than as
-# its own x-axis category.
+# List 3: Size / "dataset shape" features — absolute-scale counts. Total
+# Transitions is split into Episodes and their Avg_Episode_Length
+# (Transitions ~= Episodes * Avg_Episode_Length), so each gets its own
+# independently-scaled sub-panel in plot_dataset_source_comparison rather
+# than sharing one axis (see the module comment above).
 SIZE_FEATURES = [
+    "Transitions",
     "Episodes",
-    "Avg_Episode_Length"
+    "Avg_Episode_Length",
 ]
 
 # Meta-predictor / correlation feature set: every Coverage + Quality
@@ -458,6 +464,20 @@ def _wrap_label(label: str) -> str:
     label (e.g. 'State Coverage Entropy') stays compact instead of one long
     diagonal string."""
     return label.replace(" ", "\n")
+
+
+def _format_size_value(value: float, feature: str) -> str:
+    """Plain, non-scientific text for a Size-panel bar/tick: comma-grouped
+    whole number for the two count features (Transitions/Episodes), one
+    decimal place for the averaged Avg_Episode_Length. Used for both the
+    per-bar value labels and the y-axis tick labels so the panel never falls
+    back to matplotlib's default scientific/offset notation for large
+    counts — these are exact quantities, not floating-point measurements."""
+    if pd.isna(value):
+        return ""
+    if feature == "Avg_Episode_Length":
+        return f"{value:,.1f}"
+    return f"{value:,.0f}"
 
 
 def _usable_features(df: pd.DataFrame, features: list) -> list:
@@ -1170,7 +1190,11 @@ def _draw_grouped_source_bars(
 ):
     """Draw one panel of grouped bars: one bar per (source, feature), with
     an optional error bar on a single named feature (e.g. Mean_Return's
-    error bar sourced from its companion Std_Return column)."""
+    error bar sourced from its companion Std_Return column). Returns the
+    list of (source, BarContainer) pairs actually drawn, so callers that
+    need per-bar value labels (e.g. the Size sub-panels) can bar_label()
+    them."""
+    containers = []
     for i, source in enumerate(sources):
         source_row = group_df[group_df["source"] == source]
         if source_row.empty:
@@ -1182,21 +1206,31 @@ def _draw_grouped_source_bars(
             errors = [row.get(error_col, np.nan) if f ==
                       error_feature else 0 for f in features]
         offset = (i - (n_sources - 1) / 2) * width
-        ax.bar(x + offset, values, width, yerr=errors, capsize=3,
+        container = ax.bar(x + offset, values, width, yerr=errors, capsize=3,
                label=source, color=source_colors[source], error_kw={"linewidth": 1})
+        containers.append((source, container))
+    return containers
 
 
 def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
     """For each environment, draw one figure with one row per
-    difficulty-rank tier group (TIER_GROUP_ORDER). Each row has three
-    grouped bar-chart panels, one bar per dataset source per feature (e.g.
-    d4rl vs minari): Coverage features (COVERAGE_FEATURES), Quality features
-    (QUALITY_FEATURES), and Size features (SIZE_FEATURES, with Mean_Return's
-    error bar drawn from Std_Return) — kept in separate panels because their
-    wildly different magnitudes/ranges would otherwise dwarf each other on a
-    shared axis. Every row gets its own x-tick labels, word-wrapped at each
-    space (not rotated) so multi-word feature names stay compact and
-    legible as plain horizontal text.
+    difficulty-rank tier group (TIER_GROUP_ORDER). Each row has a grouped
+    bar-chart panel per dataset source per feature (e.g. d4rl vs minari) for
+    Coverage features (COVERAGE_FEATURES) and Quality features
+    (QUALITY_FEATURES), plus one independently-scaled sub-panel per Size
+    feature (SIZE_FEATURES: Transitions, Episodes, Avg_Episode_Length).
+    Coverage/Quality panels share a linear axis across their own features
+    because those features are roughly comparable scale; Size features are
+    related (Transitions ~= Episodes * Avg_Episode_Length) but differ from
+    each other by orders of magnitude, so each gets its own linear axis
+    (never log — these are exact counts, not measurements) with its bars
+    labeled with the plain comma-grouped value, which both keeps every
+    metric readable and preserves the exact figures a shared/log axis would
+    obscure. Every Coverage/Quality row gets its own x-tick labels,
+    word-wrapped at each space (not rotated) so multi-word feature names
+    stay compact and legible as plain horizontal text; Size sub-panels have
+    no x-axis (one bar-group per panel) and are headed by the metric name
+    instead.
 
     Unlike the other profile plots, this one spans every dataset source at
     once, so a feature missing entirely for one source (e.g. EAS/ERI not yet
@@ -1220,14 +1254,15 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                        for f in COVERAGE_FEATURES]
     quality_labels = [_wrap_label(FEATURE_LABELS.get(f, f))
                       for f in QUALITY_FEATURES]
-    size_labels = [_wrap_label(FEATURE_LABELS.get(f, f))
-                   for f in SIZE_FEATURES]
+    size_headers = [_wrap_label(FEATURE_LABELS.get(f, f))
+                    for f in SIZE_FEATURES]
 
     n_sources = len(sources)
+    n_size = len(SIZE_FEATURES)
     width = 0.8 / n_sources
     x_coverage = np.arange(len(COVERAGE_FEATURES))
     x_quality = np.arange(len(QUALITY_FEATURES))
-    x_size = np.arange(len(SIZE_FEATURES))
+    x_single = np.arange(1)  # each Size sub-panel holds exactly one feature
 
     for env in ENV_ORDER:
         env_df = df[df["env_family"] == env]
@@ -1241,28 +1276,31 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
         # Column widths proportional to each panel's bar-category count, so
         # a single-feature panel doesn't get stretched to the same width as
         # a five-feature panel — every bar slot ends up roughly the same
-        # width across panels.
-        panel_feature_counts = [len(COVERAGE_FEATURES), len(
-            QUALITY_FEATURES), len(SIZE_FEATURES)]
+        # width across panels. Each Size sub-panel counts as a 1-feature
+        # column, same as a single-feature Coverage/Quality panel would.
+        panel_feature_counts = [len(COVERAGE_FEATURES),
+                                 len(QUALITY_FEATURES)] + [1] * n_size
+        n_cols = 2 + n_size
         fig, axes = plt.subplots(
-            len(groups), 3,
+            len(groups), n_cols,
             figsize=(max(13.0, 1.6 * sum(panel_feature_counts)),
                      3.0 * len(groups)),
             squeeze=False,
             gridspec_kw={"width_ratios": panel_feature_counts},
-            # Share the y-axis within each panel column (Coverage / Quality /
-            # Size) across every tier-group row, so e.g. the "Simple / Random"
-            # row's Coverage panel is scaled identically to the "Medium"
-            # row's Coverage panel and bar heights are directly comparable
-            # top-to-bottom. Columns still scale independently of each other
-            # since Coverage/Quality/Size live on very different magnitudes.
+            # Share the y-axis within each panel column across every
+            # tier-group row, so e.g. the "Simple / Random" row's Coverage
+            # panel is scaled identically to the "Medium" row's Coverage
+            # panel and bar heights are directly comparable top-to-bottom.
+            # Columns still scale independently of each other since
+            # Coverage/Quality/each Size metric live on very different
+            # magnitudes.
             sharey="col",
         )
 
         for row_idx, group in enumerate(groups):
             group_df = env_df[env_df["tier_group"] == group]
-            ax_coverage, ax_quality, ax_size = axes[row_idx,
-                                                    0], axes[row_idx, 1], axes[row_idx, 2]
+            ax_coverage, ax_quality = axes[row_idx, 0], axes[row_idx, 1]
+            size_axes = axes[row_idx, 2:2 + n_size]
 
             _draw_grouped_source_bars(
                 ax_coverage, group_df, sources, source_colors,
@@ -1270,15 +1308,10 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
             _draw_grouped_source_bars(
                 ax_quality, group_df, sources, source_colors,
                 QUALITY_FEATURES, x_quality, width, n_sources)
-            _draw_grouped_source_bars(
-                ax_size, group_df, sources, source_colors,
-                SIZE_FEATURES, x_size, width, n_sources,
-                error_feature="Mean_Return", error_col="Std_Return")
 
             for ax, x, labels, col_label in (
                 (ax_coverage, x_coverage, coverage_labels, "Coverage"),
                 (ax_quality, x_quality, quality_labels, "Quality"),
-                (ax_size, x_size, size_labels, "Size"),
             ):
                 ax.set_title(TIER_GROUP_LABELS.get(
                     group, group), fontsize=10, loc="left")
@@ -1296,6 +1329,38 @@ def plot_dataset_source_comparison(df_profiles: pd.DataFrame, output_dir: str):
                 ax.set_xticks(x)
                 ax.set_xticklabels(
                     labels, rotation=0, ha="center", fontsize=10)
+
+            for feature, header, ax in zip(SIZE_FEATURES, size_headers, size_axes):
+                containers = _draw_grouped_source_bars(
+                    ax, group_df, sources, source_colors,
+                    [feature], x_single, width, n_sources)
+                for _, container in containers:
+                    ax.bar_label(
+                        container,
+                        fmt=lambda v, feat=feature: _format_size_value(v, feat),
+                        fontsize=7, padding=2)
+                # Plain comma-grouped y-tick labels rather than matplotlib's
+                # default scientific/offset notation for large counts — see
+                # _format_size_value.
+                ax.yaxis.set_major_formatter(
+                    FuncFormatter(lambda v, _, feat=feature: _format_size_value(v, feat)))
+                ax.set_title(TIER_GROUP_LABELS.get(
+                    group, group), fontsize=10, loc="left")
+                if row_idx == 0:
+                    ax.text(0.5, 1.22, header, transform=ax.transAxes,
+                            ha="center", va="bottom", fontsize=10,
+                            fontweight="bold")
+                ax.grid(axis="y", alpha=0.3)
+                ax.set_xticks([])  # one bar-group per panel; header names it
+
+        # Headroom above each Size column's tallest bar so its value label
+        # isn't clipped. Set once per column, after every row has been
+        # drawn, on the row-0 axis: sharey="col" links view limits across
+        # the column, so this widens the shared range for every row.
+        for j in range(n_size):
+            ax0 = axes[0, 2 + j]
+            top = ax0.get_ylim()[1]
+            ax0.set_ylim(bottom=0, top=top * 1.18)
 
         # Built directly from source_colors (rather than pulled off one
         # subplot's handles) so every source appears even if a row happens
