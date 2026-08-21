@@ -293,14 +293,20 @@ def plot_dendrogram(results, output_dir=None, width_pt=397.48):
     with plt.rc_context({'font.size': 10, 'font.family': 'sans-serif'}):
         fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
+        # Format metric names for the x-axis labels
+        formatted_labels = [
+            name.replace('_', ' ')
+            for name in results['metric_names']
+        ]
+
         dendro = dendrogram(
             results['linkage_matrix'],
-            labels=results['metric_names'],
+            labels=formatted_labels,
             ax=ax,
             leaf_rotation=90
         )
 
-        ax.set_title('Metriken-Clustering: Hierarchical Dendrogram', fontsize=10, fontweight='bold')
+        ax.set_title('Metrics-Clustering: Hierarchical Dendrogram', fontsize=10, fontweight='bold')
         ax.set_ylabel('Distance (1 - |correlation|)', fontsize=10)
         ax.tick_params(axis='both', labelsize=10)
         ax.grid(axis='y', alpha=0.3)
@@ -342,7 +348,7 @@ def plot_correlation_heatmap(results, output_dir=None, figsize=(12, 10)):
         cbar_kws={'label': 'Correlation'}
     )
     
-    ax.set_title('Metriken-Korrelationsmatrix', fontsize=14, fontweight='bold')
+    ax.set_title('Metrics-Correlation Matrix', fontsize=14, fontweight='bold')
     plt.xticks(rotation=90, fontsize=8)
     plt.yticks(rotation=0, fontsize=8)
     
