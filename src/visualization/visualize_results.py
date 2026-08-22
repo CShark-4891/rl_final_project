@@ -705,7 +705,7 @@ def plot_correlation_heatmap(
         corr,
         mask=mask,
         annot=True,
-        fmt=".3f",
+        fmt=".2f",
         cmap="RdBu_r",
         vmin=-1, vmax=1,
         center=0,
