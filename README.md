@@ -7,7 +7,7 @@ This repository studies which measurable characteristics of offline reinforcemen
 - Aggregation pipeline to combine dataset profiles with benchmarked model results into a meta-dataset for analysis.
 - Experiments training CQL (via d3rlpy) on Minari datasets and comparing metric–performance relationships against published D4RL/CQL results.
 
-**Paper:** The full report and findings are in the repo (LaTeX source). See the project paper for details, figures and references.
+**Paper:** The full report and findings are in the repo. See the project paper for details, figures and references under `reports/`.
 
 **Quick links:**
 - Dataset analysis: [src/dataset_analyzer](src/dataset_analyzer)
