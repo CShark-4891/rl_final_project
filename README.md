@@ -17,12 +17,15 @@ This repository studies which measurable characteristics of offline reinforcemen
 - Results and profiles: [src/results](src/results)
 
 **Repository layout (top-level)**
+- `literature/` : contains the pdf of different papers that we analyzed for our study.
+- `reports/` : contains the PDF of the project report.
 - `src/` : code for dataset analysis, training pipelines, predictors and visualization.
 - `src/dataset_analyzer/` : compute per-dataset JSON profiles and helper utilities.
 - `src/pipeline/` : training and benchmarking orchestration (CQL runs via d3rlpy).
 - `src/performance_prediction/` : scripts to train/predict model performance from dataset features.
 - `src/results/` : computed `dataset_profiles/`, trained-policy results, and figures.
 - `figures/`, `result_plots/` : plotting outputs used in the paper.
+- `references.bib` : BibTeX references for the project and underlying works.
 
 **Quickstart (conda / venv)**
 1. Create environment and install deps (requirements are in the repo):
@@ -81,8 +84,8 @@ See the individual script docs and `configs/` for additional options and hyperpa
 **Cite / Acknowledge**
 If you use this code or results, please cite the project and the underlying works (CQL, D4RL, d3rlpy, Minari) referenced in the paper. Also see the [references section](#references-of-the-project) below for links to the original papers and repositories.
 
-**Contact**
-Project authors: Alex Alfonso Trigo, Luca Beuke, Simon Böke — see the paper header for the repository link.
+**Project Authors:**
+Alex Alfonso Trigo, Luca Beuke, Simon Böke
 
 ## References of the project
 - [D3rlpy: Deep Reinforcement Learning Library for Python - Paper](https://arxiv.org/abs/2111.03788)
