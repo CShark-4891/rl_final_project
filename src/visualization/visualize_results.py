@@ -160,6 +160,7 @@ COVERAGE_FEATURES = [
 QUALITY_FEATURES = [
     "ERI",
     "TQ",
+    "Reward_Sparsity"
 ]
 
 # List 3: Size / "dataset shape" features — absolute-scale counts. Total
