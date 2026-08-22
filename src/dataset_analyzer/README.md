@@ -3,32 +3,23 @@
 Computes a set of measurable characteristics for offline reinforcement learning
 datasets.
 
-## Dataset Analyzer Scripts
+## Overview
 
-This folder contains Python utilities for analyzing offline RL datasets, building a meta-dataset, and evaluating how dataset characteristics relate to downstream performance.
+This package contains utilities for computing descriptive statistics and diagnostic features for offline RL datasets, producing per-dataset JSON profiles and a combined meta-dataset used by downstream analysis and prediction models.
 
-### Files and purpose
+## Scripts and locations
 
-- build_meta_dataset.py
-  Builds a CSV registry by combining benchmark results from the pipeline with structural dataset profile features such as coverage, entropy, diversity, and reward sparsity.
+- `dataset_analyzer.py` (this folder): load datasets via `d3rlpy`/Minari and compute per-dataset JSON profiles describing size, coverage, quality, and trajectory diversity.
+- `build_meta_dataset.py` (this folder): aggregate per-run benchmark results with the computed dataset profiles to produce a CSV registry for meta-analysis.
+- `profile_feature_computer.py` (this folder): lower-level helpers used by the analyzer to compute coverage, entropy, histograms and pooled-family statistics.
+- `generate_custom_minari.py` (this folder): helper to create local Minari-style datasets for experiments.
+- `train_meta_predictor.py` and `predict_performance.py` are located in `src/performance_prediction/`: training and inference code for simple meta-models that predict downstream algorithm performance from dataset profiles.
 
-- dataset_analyzer.py
-  Loads Minari datasets, computes diagnostic metrics, and saves JSON profile files describing each dataset's state/action coverage, quality, and trajectory diversity.
+## Typical workflow
 
-- generate_custom_minari.py
-  Creates a local custom Minari dataset for experimentation, useful for validating pipeline behavior on synthetic or custom replay-style data.
-
-- train_meta_predictor.py
-  Trains a simple meta-model on the compiled registry to estimate which dataset properties are most predictive of performance.
-
-- predict_performance.py
-  Uses a trained meta-predictor to estimate performance for a dataset profile and compares those predictions with real pipeline results.
-
-### Typical workflow
-
-1. Run dataset_analyzer.py to generate dataset profile JSON files.
-2. Run build_meta_dataset.py to create the meta-analysis registry.
-3. Use train_meta_predictor.py or predict_performance.py to study the relationship between dataset metrics and offline RL performance.
+1. Run `dataset_analyzer.py` to produce per-dataset JSON profiles (outputs are written to `src/results/dataset_profiles/`).
+2. Run `build_meta_dataset.py` to combine pipeline benchmark results with those profiles into a single CSV registry for modeling and visualization.
+3. Train or run meta-predictors with the scripts in `src/performance_prediction/` to study which dataset features predict algorithm performance.
 
 ## Metrics
 
@@ -76,7 +67,7 @@ empty); scored against the family's shared 20-cluster partition instead, a
 narrow dataset now only occupies the handful of clusters its points actually
 fall into.
 
-Each dataset's profile is written as a JSON file to `dataset_profiles/`.
+Each dataset's profile is written as a JSON file to `src/results/dataset_profiles/`.
 See the README in that folder for the exact schema.
 
 ## Data Sets
@@ -103,7 +94,7 @@ All the datasets are loaded via `d3rlpy` from the [Minari](https://minari.farama
 
 ### Not included in the research study:
 
-MuJoCo Ant & Humanoid datasets are **not YET** included in this study due to their high-dimensional state and action spaces, which make them less suitable for the current analysis.
+MuJoCo Ant & Humanoid datasets are not included in this study due to limited time constraints.
 
 [**MuJoCo Ant datasets**](https://minari.farama.org/main/datasets/mujoco/ant/)**:**
 - [expert-v0](https://minari.farama.org/main/datasets/mujoco/ant/expert-v0/)
@@ -114,3 +105,14 @@ MuJoCo Ant & Humanoid datasets are **not YET** included in this study due to the
 - [expert-v0](https://minari.farama.org/main/datasets/mujoco/humanoid/expert-v0/)
 - [medium-v0](https://minari.farama.org/main/datasets/mujoco/humanoid/medium-v0/)
 - [simple-v0](https://minari.farama.org/main/datasets/mujoco/humanoid/simple-v0/)
+
+
+## References
+
+- [Minari: Offline Reinforcement Learning Datasets - Documentation](https://minari.farama.org/main/)
+
+- [Minari: Offline Reinforcement Learning Datasets - Github](https://github.com/Farama-Foundation/Minari)
+
+- [D4RL: Datasets for Deep Data-Driven Reinforcement Learning - Paper](https://arxiv.org/abs/2004.07219)
+
+- [D4RL: Datasets for Deep Data-Driven Reinforcement Learning - Github](https://github.com/Farama-Foundation/D4RL)

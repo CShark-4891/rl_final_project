@@ -45,4 +45,10 @@ Each run writes its artifacts under `results/cql_runs/`.
 - The active dataset list is defined in `main.py`.
 - Default hyperparameters come from the shared configuration file in `configs/`.
 
+## References
+
+- [D3rlpy: Deep Reinforcement Learning Library for Python - Paper](https://arxiv.org/abs/2111.03788)
+
+- [D3rlpy: Deep Reinforcement Learning Library for Python - Github](https://github.com/takuseno/d3rlpy)
+
 
