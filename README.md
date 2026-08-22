@@ -88,14 +88,26 @@ If you use this code or results, please cite the project and the underlying work
 Alex Alfonso Trigo, Luca Beuke, Simon Böke
 
 ## References of the project
-- [D3rlpy: Deep Reinforcement Learning Library for Python - Paper](https://arxiv.org/abs/2111.03788)
 
-- [D3rlpy: Deep Reinforcement Learning Library for Python - Github](https://github.com/takuseno/d3rlpy)
+### Papers and Documentations:
+
+- [Conservative Q-Learning (CQL) - Paper](https://arxiv.org/abs/2006.04779)
+
+- [D3rlpy: Deep Reinforcement Learning Library for Python - Paper](https://arxiv.org/abs/2111.03788)
 
 - [D4RL: Datasets for Deep Data-Driven Reinforcement Learning - Paper](https://arxiv.org/abs/2004.07219)
 
-- [D4RL: Datasets for Deep Data-Driven Reinforcement Learning - Github](https://github.com/Farama-Foundation/D4RL)
-
 - [Minari: A Benchmark for Offline Reinforcement Learning - Documentation](https://minari.farama.org/main/)
 
+- [Understanding the Effects of Dataset Characteristics on Offline Reinforcement Learning - Paper](https://arxiv.org/abs/2111.04714v1)
+
+- [Measuring Data Quality for Dataset Selection in Offline Reinforcement Learning - Paper](https://arxiv.org/abs/2111.13461)
+
+### Repositories:
+
+- [D3rlpy: Deep Reinforcement Learning Library for Python - Github](https://github.com/takuseno/d3rlpy)
+
+- [D4RL: Datasets for Deep Data-Driven Reinforcement Learning - Github](https://github.com/Farama-Foundation/D4RL)
+
 - [Minari: A Benchmark for Offline Reinforcement Learning - Github](https://github.com/Minari/Minari)
+
